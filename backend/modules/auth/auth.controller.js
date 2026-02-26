@@ -1,13 +1,10 @@
 import * as authService from "./auth.service.js";
-import {supabase} from "../../lib/supabase.js";
-
+import { supabase } from "../../lib/mock.supabase.js";
 
 export const getNonce = async (req, res) => {
   try {
     const { walletAddress } = req.body;
-
     const nonce = await authService.generateNonce(walletAddress);
-
     res.json({ nonce });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -16,11 +13,11 @@ export const getNonce = async (req, res) => {
 
 export const verify = async (req, res) => {
   try {
-    const { walletAddress, signature, nonce } = req.body;
+    const { walletAddress, signatureMap, nonce } = req.body; // 👈 signatureMap
 
     const data = await authService.verifySignature(
       walletAddress,
-      signature,
+      signatureMap,
       nonce
     );
 
@@ -39,7 +36,6 @@ export const me = async (req, res) => {
       .single();
 
     if (error) throw error;
-
     res.json(data);
   } catch (error) {
     res.status(500).json({ message: error.message });

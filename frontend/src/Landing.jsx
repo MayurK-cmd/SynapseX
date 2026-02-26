@@ -1,8 +1,15 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 
 
 const Landing = () => {
+  const navigate = useNavigate();
+
+  const handleWalletConnect = () => {
+    navigate('/wallet-connect');
+  };
+
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-700">
       
@@ -20,7 +27,7 @@ const Landing = () => {
             <a href="#features" className="hover:text-blue-600 transition">Features</a>
             <a href="#tech" className="hover:text-blue-600 transition">Architecture</a>
           </div>
-          <button className="bg-slate-950 text-white px-5 py-2 rounded-full text-sm font-semibold hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-200">
+          <button onClick={handleWalletConnect} className="bg-slate-950 text-white px-5 py-2 rounded-full text-sm font-semibold hover:bg-slate-800 transition-all active:scale-95 shadow-lg shadow-slate-200 cursor-pointer">
             Connect Wallet
           </button>
         </div>

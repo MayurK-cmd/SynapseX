@@ -10,6 +10,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@hashgraph/proto": "^2.25.0",
+    "@hashgraph/sdk": "^2.80.0",
     "@supabase/supabase-js": "^2.97.0",
     "cors": "^2.8.6",
     "crypto": "^1.0.1",
