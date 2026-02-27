@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import cors from "cors";
 import authRoutes from "./modules/auth/auth.routes.js";
 import userRoutes from "./modules/user/user.routes.js";
+import taskRoutes from "./modules/tasks/task.routes.js";
+
 dotenv.config();
 const app = express();
 const allowedOrigins = [
@@ -18,6 +20,8 @@ app.use(express.json());
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
+app.use("/tasks", taskRoutes);
+
 
 const PORT = process.env.PORT || 5000;
 

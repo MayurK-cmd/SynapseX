@@ -1,4 +1,4 @@
-import { supabase } from "../../lib/mock.supabase.js";
+import { supabase } from "../../lib/supabase.js";
 import { PublicKey } from "@hashgraph/sdk";
 import { proto } from "@hashgraph/proto";
 import crypto from "crypto";
@@ -26,25 +26,7 @@ export const verifySignature = async (walletAddress, signatureMap, nonce) => {
 
   if (error || !data || data.nonce !== nonce) {
     throw new Error("Invalid nonce");
-  }
-
-  // 2. Verify signature
-  // try {
-  //   const sigMapBytes = Buffer.from(signatureMap, "base64");
-  //   const sigMap = proto.SignatureMap.decode(sigMapBytes);
-
-  //   const sigPair = sigMap.sigPair[0];
-  //   const pubKey = PublicKey.fromBytes(sigPair.pubKeyPrefix);
-  //   const signature = Buffer.from(sigPair.ed25519);
-  //   const messageBytes = Buffer.from(btoa(nonce));
-
-  //   const isValid = pubKey.verify(messageBytes, signature);
-  //   if (!isValid) throw new Error("Invalid signature");
-  // } catch (err) {
-  //   throw new Error("Signature verification failed: " + err.message);
-  // }
-
-  try {
+  } try {
     const sigMapBytes = Buffer.from(signatureMap, "base64");
 const sigMap = proto.SignatureMap.decode(sigMapBytes);
 
@@ -69,6 +51,7 @@ for (const [label, msgBytes] of Object.entries(candidates)) {
 
   console.log("sig hex:", sig.toString("hex"));
 console.log("sigPair keys:", Object.keys(sigPair));
+
 }
   } catch (err) {
   throw new Error("Signature verification failed: " + err.message);
@@ -97,4 +80,5 @@ console.log("sigPair keys:", Object.keys(sigPair));
 
   const token = signToken({ userId: user.id });
   return { token, user };
+  
 };

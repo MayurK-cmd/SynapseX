@@ -1,5 +1,5 @@
 import * as authService from "./auth.service.js";
-import { supabase } from "../../lib/mock.supabase.js";
+import {supabase } from "../../lib/supabase.js";
 
 export const getNonce = async (req, res) => {
   try {
