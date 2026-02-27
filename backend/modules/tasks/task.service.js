@@ -4,8 +4,9 @@ import { executeAI } from "../../services/ai/ai.router.js";
 import { getOrCreateSystemAgent } from "../../services/agent.service.js";
 
 export const createTask = async (user, body) => {
+  const autotitle = body.description.split(" ").slice(0,6).join(" ") + "...";
   const task = {
-    title: body.title,
+    title: autotitle,
     description: body.description,
     reward: body.reward,
     type: body.type,
@@ -51,5 +52,17 @@ const processTask = async (taskId) => {
   }
 };
 
+export const getTasksByUser = async (id) => {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("creator_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
+
+export const getMyTasks = (id) => repo.getTasksByUser(id);
 export const getTask = (id) => repo.getTaskById(id);
 export const getAllTasks = () => repo.getAllTasks();

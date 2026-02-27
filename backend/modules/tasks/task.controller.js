@@ -21,3 +21,8 @@ export const getTask = async (req, res) => {
   const task = await service.getTask(req.params.id);
   res.json(task);
 };
+
+export const getMyTasks = async (req, res) => {
+  const tasks = await service.getMyTasks(req.user.userId);
+  res.json(tasks);
+};

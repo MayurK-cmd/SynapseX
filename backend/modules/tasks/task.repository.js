@@ -50,3 +50,14 @@ export const getAllTasks = async () => {
   if (error) throw error;
   return data;
 };
+
+export const getTasksByUser = async (userId) => {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("creator_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
