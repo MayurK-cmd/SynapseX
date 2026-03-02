@@ -4,6 +4,8 @@ import cors from "cors";
 import authRoutes from "./modules/auth/auth.routes.js";
 import userRoutes from "./modules/user/user.routes.js";
 import taskRoutes from "./modules/tasks/task.routes.js";
+import agentRoutes from "./modules/agents/agent.routes.js";
+import statsRoutes from "./utils/stats.routes.js";
 
 dotenv.config();
 const app = express();
@@ -17,10 +19,16 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.get("/",(req,res) => {
+  res.status(200).json({message:'Backend is up and running check /stats for data'})
+}
 
+)
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/tasks", taskRoutes);
+app.use("/agents",agentRoutes);
+app.use("/stats",statsRoutes)
 
 
 const PORT = process.env.PORT || 5000;

@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import UserLookup from "./pages/UserLookup";
 import TaskPage from "./pages/TaskPage";
+import AgentsPage from "./pages/AgentsPage";
 
 const App = () => {
   return (
@@ -16,6 +17,7 @@ const App = () => {
         <Route path="/profile" element={<Profile />} />
         <Route path="/search" element={<UserLookup />} />
         <Route path="/chat" element={<TaskPage />} />
+        <Route path="/agents" element={<AgentsPage />} />
       </Routes>
     </BrowserRouter>
   );

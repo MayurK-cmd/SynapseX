@@ -10,7 +10,7 @@ import api from "../../api/axios";
 import { useNavigate } from "react-router-dom";
 
 // Configuration
-const dappConnector = new DAppConnector(
+export const dappConnector = new DAppConnector(
   {
     name: "SynapseX",
     description: "Autonomous AI Agent Marketplace",

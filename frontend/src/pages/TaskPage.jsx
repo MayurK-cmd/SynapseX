@@ -14,6 +14,7 @@ export default function ChatLayout() {
   const [prompt, setPrompt] = useState("");
   const [type, setType] = useState("TEXT");
   const [reward, setReward] = useState(10);
+  const [modelPoolType,setModelPoolType] = useState("PLATFORM")
 
   // 🟣 Load History
   const loadTasks = useCallback(async () => {
@@ -61,7 +62,7 @@ export default function ChatLayout() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ description: prompt, reward, type }),
+        body: JSON.stringify({ description: prompt, reward, type, model_pool_type: modelPoolType }),
       });
       const newTask = await res.json();
       
@@ -252,6 +253,10 @@ export default function ChatLayout() {
                   <option value="TEXT">TEXT</option>
                   <option value="IMAGE">IMAGE</option>
                 </select>
+                <select value={modelPoolType} onChange={(e) => setModelPoolType(e.target.value)} className="bg-white border border-slate-200 text-[10px] font-black rounded-full px-3 py-1.5 outline-none cursor-pointer hover:border-blue-300 transition-colors">
+  <option value="PLATFORM">PLATFORM</option>
+  <option value="USER">USER</option>
+</select>
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-3 py-1">
                   <input type="number" value={reward} onChange={(e) => setReward(Number(e.target.value))} className="w-8 text-[10px] font-bold text-blue-600 outline-none" />
                   <span className="text-[10px] font-black text-slate-400 uppercase">HBAR</span>

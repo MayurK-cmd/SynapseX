@@ -5,19 +5,22 @@ import { getOrCreateSystemAgent } from "../../services/agent.service.js";
 import { runPlatformCompetition } from "../competition/competition.engine.js";
 import { supabase } from "../../lib/supabase.js";
 
-export const createTask = async (user, body) => {
+export const createTask = async ( user,body) => {
+
   const autotitle = body.description.split(" ").slice(0,6).join(" ") + "...";
   const task = {
     title: autotitle,
-    description: body.description,
-    reward: body.reward,
+    description :body.description,
+    reward : body.reward,
     type: body.type,
     creator_id: user.userId,
-    status: TaskStatus.OPEN,
+    model_pool_type: body.model_pool_type || "PLATFORM",
+    status: "OPEN",
   };
 
   const savedTask = await repo.createTask(task);
 
+  // fire async process (don't await)
   processTask(savedTask);
 
   return savedTask;

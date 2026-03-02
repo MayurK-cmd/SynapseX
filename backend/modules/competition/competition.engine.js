@@ -5,14 +5,30 @@ const PLATFORM_API_KEY = process.env.OPENROUTER_API_KEY;
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const runPlatformCompetition = async (task) => {
-  const { data: agents, error } = await supabase
+   let query = supabase
     .from("agents")
     .select("*")
-    .eq("model_source", "PLATFORM")
     .eq("competition_enabled", true);
 
+  if (task.model_pool_type === "PLATFORM") {
+    query = query.eq("model_source", "PLATFORM");
+  } else if (task.model_pool_type === "USER") {
+    query = query
+      .eq("model_source", "USER")
+      
+  }
+
+  const {data:agents, error} = await query;
+
+  console.log("model_pool_type:", task.model_pool_type);
+console.log("creator_id:", task.creator_id);
+console.log("agents found:", agents);
+console.log("query error:", error);
+
   if (error) throw error;
-  if (!agents.length) throw new Error("No platform models available");
+  if (!agents.length) throw new Error("No ${task.model_pool_type} models available");
+
+  
 
   // Sequential execution with 1.5s delay between each model
   const executions = [];
@@ -24,7 +40,11 @@ export const runPlatformCompetition = async (task) => {
       const result = await executeModel({
         modelIdentifier: agent.model_identifier,
         prompt: task.description,
-        apiKey: PLATFORM_API_KEY,
+        originAgentCluster:{
+          model_source: agent.model_source,
+          model_pool_type:task.model_pool_type,
+          api_key_encrypted:agent.api_key_encrypted ?? null,
+        }
       });
       console.log(`[${agent.name}] ✅ tokens: ${result.tokens} | latency: ${result.latency}ms | response: ${result.text?.slice(0, 100)}...`);
 

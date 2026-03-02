@@ -3,10 +3,13 @@ import { supabase } from "../../lib/supabase.js";
 
 export const createTask = async (req, res) => {
   try {
+    
+
     const task = await service.createTask(
       req.user,
       req.body
     );
+
     res.json(task);
   } catch (err) {
     res.status(400).json({ message: err.message });

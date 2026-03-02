@@ -4,3 +4,4 @@ sign.js
 wallet.js
 test.js
 lib/mock.supabase.js
+services/security/bytes.js
