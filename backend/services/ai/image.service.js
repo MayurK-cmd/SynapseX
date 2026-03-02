@@ -4,7 +4,7 @@ export const executeImage = async (task) => {
   const response = await axios.post(
     "https://openrouter.ai/api/v1/chat/completions",
     {
-         model: "google/gemma-3-27b-it:free",
+         model: "sourceful/riverflow-v2-max-preview",
       messages: [
         {
             role: "user",
@@ -19,9 +19,11 @@ export const executeImage = async (task) => {
     }
   );
     return {
-        model: "google/gemma-3-27b-it:free",
+        model: "sourceful/riverflow-v2-max-preview",
         output_url: null,
         result_hash: null,
         raw: response.data,
     }
 };
+
+//test once

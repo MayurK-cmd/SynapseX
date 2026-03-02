@@ -80,5 +80,4 @@ console.log("sigPair keys:", Object.keys(sigPair));
 
   const token = signToken({ userId: user.id });
   return { token, user };
-  
 };

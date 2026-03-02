@@ -12,7 +12,7 @@ const router = express.Router();
 router.post("/", authenticate, createTask);
 router.get("/", getTasks);
 router.get("/my", authenticate, getMyTasks);
-router.get("/:id", getTask);
+router.get("/:id", authenticate,getTask);
 
 
 export default router;
