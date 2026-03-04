@@ -1,22 +1,46 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { dappConnector } from "./WalletConnect";
+import { ethers } from "ethers";
+import { TransferTransaction, Hbar } from "@hashgraph/sdk";
+
+const ESCROW_ACCOUNT = "0.0.8064708";
+
+const lockTaskOnChain = async (taskId, rewardHbar) => {
+  const session = dappConnector.signers[0];
+  if (!session) throw new Error("Wallet not connected");
+
+  const userAccountId = session.getAccountId().toString();
+
+  const transaction = new TransferTransaction()
+    .addHbarTransfer(userAccountId, new Hbar(-rewardHbar))
+    .addHbarTransfer(ESCROW_ACCOUNT, new Hbar(rewardHbar))
+    .setTransactionMemo(`SynapseX Escrow: ${taskId}`);
+
+  // executeWithSigner handles freeze + sign + execute internally
+  const result = await session.call(transaction);
+
+  const txId = result?.transactionId?.toString() ?? "completed";
+  console.log("Escrow transfer tx:", txId);
+  return txId;
+};
 
 export default function ChatLayout() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const API = api.defaults.baseURL;
 
-  // 🟣 State Management
   const [tasks, setTasks] = useState([]);
   const [selectedTask, setSelectedTask] = useState(null);
   const [isLoadingTask, setIsLoadingTask] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [type, setType] = useState("TEXT");
   const [reward, setReward] = useState(10);
-  const [modelPoolType,setModelPoolType] = useState("PLATFORM")
+  const [modelPoolType, setModelPoolType] = useState("PLATFORM");
+  const [lockingFunds, setLockingFunds] = useState(false);
+  const [lockError, setLockError] = useState("");
 
-  // 🟣 Load History
   const loadTasks = useCallback(async () => {
     try {
       const res = await fetch(`${API}/tasks/my`, {
@@ -29,7 +53,6 @@ export default function ChatLayout() {
     }
   }, [API, token]);
 
-  // 🟣 Load Specific Task
   const loadTask = async (id, showLoader = false) => {
     if (showLoader) setIsLoadingTask(true);
     try {
@@ -45,16 +68,23 @@ export default function ChatLayout() {
     }
   };
 
-  // 🟣 New Chat (Gemini Style)
   const handleNewChat = () => {
     setSelectedTask(null);
     setPrompt("");
+    setLockError("");
   };
 
-  // 🟣 Create Task
+  // 🔑 Main function — lock funds first, then create task
   const sendPrompt = async () => {
     if (!prompt.trim()) return;
-    
+    setLockError("");
+    const session = dappConnector.signers[0];
+  console.log("Session topic:", session?.topic);
+  console.log("Session chains:", session?.session?.namespaces);
+
+    // Step 1: Create task in DB first to get the task ID
+    // We need the ID before locking on-chain
+    let newTask;
     try {
       const res = await fetch(`${API}/tasks`, {
         method: "POST",
@@ -62,19 +92,52 @@ export default function ChatLayout() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ description: prompt, reward, type, model_pool_type: modelPoolType }),
+        body: JSON.stringify({
+          description: prompt,
+          reward,
+          type,
+          model_pool_type: modelPoolType,
+          reward_amount: reward, // store reward_amount for payout service
+        }),
       });
-      const newTask = await res.json();
-      
-      setPrompt(""); 
-      await loadTasks(); 
-      loadTask(newTask.id, true); 
+      newTask = await res.json();
+      if (!res.ok) throw new Error(newTask.message || "Task creation failed");
     } catch (err) {
-      console.error("Task creation failed:", err);
+      setLockError("Failed to create task: " + err.message);
+      return;
     }
+
+    // Step 2: Lock funds in escrow — HashPack will pop open here
+    try {
+      setLockingFunds(true);
+      const txHash = await lockTaskOnChain(newTask.id, reward);
+      console.log("Escrow locked, tx:", txHash);
+
+      // Save escrow tx hash to DB
+      await fetch(`${API}/tasks/${newTask.id}/escrow`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ escrow_tx_hash: txHash }),
+      });
+    } catch (err) {
+      console.error("Escrow lock failed:", err);
+      setLockError("Payment failed: " + (err.message || "HashPack rejected or insufficient funds"));
+      setLockingFunds(false);
+      // Task was created but not funded — you may want to cancel it here
+      return;
+    } finally {
+      setLockingFunds(false);
+    }
+
+    // Step 3: Navigate to the task view
+    setPrompt("");
+    await loadTasks();
+    loadTask(newTask.id, true);
   };
 
-  // 🟣 Polling Logic
   useEffect(() => {
     if (!selectedTask || selectedTask.status === "COMPLETED" || selectedTask.status === "FAILED") return;
 
@@ -101,10 +164,11 @@ export default function ChatLayout() {
   useEffect(() => { loadTasks(); }, [loadTasks]);
 
   const isPending = selectedTask && (selectedTask.status === "OPEN" || selectedTask.status === "IN_PROGRESS");
+  const isExecuting = isPending || lockingFunds;
 
   return (
     <div className="flex h-screen bg-white font-sans text-slate-900 overflow-hidden">
-      
+
       {/* --- Sidebar --- */}
       <aside className="w-80 border-r border-slate-100 flex flex-col bg-slate-50/50">
         <div className="p-6 border-b border-slate-100 space-y-4 bg-white">
@@ -112,8 +176,7 @@ export default function ChatLayout() {
             <span className="text-[10px] font-black text-blue-600 uppercase tracking-[.3em]">SynapseX</span>
             <button onClick={() => navigate('/dashboard')} className="text-[10px] font-bold text-slate-400 hover:text-blue-600 uppercase tracking-widest cursor-pointer">← Exit</button>
           </div>
-          
-          <button 
+          <button
             onClick={handleNewChat}
             className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 active:scale-95"
           >
@@ -123,32 +186,30 @@ export default function ChatLayout() {
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-[.2em] mb-4 ml-2">Recent Battles</p>
-          
-          {/* Force Sort: Latest First (Descending ID) */}
           {[...tasks]
-            .sort((a, b) => parseInt(b.id) - parseInt(a.id))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
             .map((task) => (
-            <div 
-              key={task.id} 
-              onClick={() => loadTask(task.id, true)} 
-              className={`p-4 rounded-2xl cursor-pointer transition-all border ${
-                selectedTask?.id === task.id 
-                ? "bg-white border-blue-200 shadow-sm ring-1 ring-blue-50" 
-                : "border-transparent hover:bg-white hover:border-slate-200"
-              }`}
-            >
-              <p className={`text-sm font-bold truncate ${selectedTask?.id === task.id ? 'text-blue-600' : 'text-slate-700'}`}>
-                {task.description.substring(0, 30)}...
-              </p>
-              <div className="flex items-center justify-between mt-2">
-                <div className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full ${task.status === 'COMPLETED' ? 'bg-green-500' : 'bg-amber-500'}`} />
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{task.status}</span>
+              <div
+                key={task.id}
+                onClick={() => loadTask(task.id, true)}
+                className={`p-4 rounded-2xl cursor-pointer transition-all border ${
+                  selectedTask?.id === task.id
+                    ? "bg-white border-blue-200 shadow-sm ring-1 ring-blue-50"
+                    : "border-transparent hover:bg-white hover:border-slate-200"
+                }`}
+              >
+                <p className={`text-sm font-bold truncate ${selectedTask?.id === task.id ? 'text-blue-600' : 'text-slate-700'}`}>
+                  {task.description.substring(0, 30)}...
+                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${task.status === 'COMPLETED' ? 'bg-green-500' : 'bg-amber-500'}`} />
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{task.status}</span>
+                  </div>
+                  <span className="text-[8px] font-mono text-slate-300">#{task.id.slice(0, 6)}</span>
                 </div>
-                <span className="text-[8px] font-mono text-slate-300">#{task.id}</span>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       </aside>
 
@@ -162,14 +223,17 @@ export default function ChatLayout() {
             </div>
           ) : selectedTask ? (
             <div className="max-w-3xl mx-auto space-y-10 animate-in fade-in duration-500">
-              
+
               {/* User Side */}
               <div className="flex flex-col items-end">
                 <div className="bg-slate-900 text-white px-6 py-4 rounded-3xl rounded-tr-none text-sm max-w-[85%] shadow-xl">
                   {selectedTask.description}
                 </div>
                 <div className="mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                  Task #{selectedTask.id} • Bounty: {selectedTask.reward} HBAR
+                  Task #{selectedTask.id.slice(0, 8)} • Bounty: {selectedTask.reward} HBAR
+                  {selectedTask.escrow_tx_hash && (
+                    <span className="ml-2 text-green-500">• Escrow Locked ✓</span>
+                  )}
                 </div>
               </div>
 
@@ -188,13 +252,13 @@ export default function ChatLayout() {
 
                   {isPending ? (
                     <div className="py-12 flex flex-col items-center justify-center border-2 border-dashed border-blue-50 rounded-3xl bg-blue-50/20">
-                       <div className="flex gap-1 mb-4">
-                          <div className="w-1.5 h-6 bg-blue-600 animate-bounce" style={{animationDelay:'0.1s'}} />
-                          <div className="w-1.5 h-6 bg-blue-400 animate-bounce" style={{animationDelay:'0.2s'}} />
-                          <div className="w-1.5 h-6 bg-blue-200 animate-bounce" style={{animationDelay:'0.3s'}} />
-                       </div>
-                       <p className="text-xs font-bold text-slate-600">Models are competing...</p>
-                       <p className="text-[10px] text-slate-400 mt-2 uppercase tracking-widest">~10s for on-chain consensus</p>
+                      <div className="flex gap-1 mb-4">
+                        <div className="w-1.5 h-6 bg-blue-600 animate-bounce" style={{ animationDelay: '0.1s' }} />
+                        <div className="w-1.5 h-6 bg-blue-400 animate-bounce" style={{ animationDelay: '0.2s' }} />
+                        <div className="w-1.5 h-6 bg-blue-200 animate-bounce" style={{ animationDelay: '0.3s' }} />
+                      </div>
+                      <p className="text-xs font-bold text-slate-600">Models are competing...</p>
+                      <p className="text-[10px] text-slate-400 mt-2 uppercase tracking-widest">~10s for on-chain consensus</p>
                     </div>
                   ) : (
                     <div className="space-y-6">
@@ -203,21 +267,27 @@ export default function ChatLayout() {
                           <div>
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Winner</p>
                             <p className="text-xs font-bold text-slate-800">{selectedTask.winner_agent.name}</p>
-                            <br></br>
-                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Winner Agent ID</p>
+                            <br />
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Winner Agent ID</p>
                             <p className="text-xs font-bold text-slate-800">{selectedTask.winner_agent.id}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Usage</p>
                             <p className="text-xs font-bold text-blue-600">{selectedTask.total_tokens_used || 0} tokens</p>
-                            <br></br>
+                            <br />
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Models Competed</p>
                             <p className="text-xs font-bold text-blue-600">{selectedTask.total_models_competed || 0} models</p>
                           </div>
                           <div className="col-span-2 pt-3 border-t border-slate-200">
-                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Winner Wallet</p>
-                             <p className="text-[10px] font-mono text-slate-500 break-all leading-tight">{selectedTask.winner_agent.wallet_address}</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Winner Wallet</p>
+                            <p className="text-[10px] font-mono text-slate-500 break-all leading-tight">{selectedTask.winner_agent.wallet_address}</p>
                           </div>
+                          {selectedTask.payment_tx_hash && (
+                            <div className="col-span-2 pt-3 border-t border-slate-200">
+                              <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-1">✓ Payout Complete</p>
+                              <p className="text-[10px] font-mono text-slate-400 break-all">{selectedTask.payment_tx_hash}</p>
+                            </div>
+                          )}
                         </div>
                       )}
                       <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
@@ -232,13 +302,27 @@ export default function ChatLayout() {
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-3xl mb-4 flex items-center justify-center text-2xl font-black italic text-slate-200">S</div>
               <h2 className="text-xl font-bold text-slate-800 mb-2">Start a New Competition</h2>
-              <p className="text-xs text-slate-400 max-w-xs uppercase tracking-widest font-medium">Post a task below and let AI models battle for the HBAR bounty.</p>
+              <p className="text-xs text-slate-400 max-w-xs uppercase tracking-widest font-medium">Post a task and let AI models battle for the HBAR bounty.</p>
             </div>
           )}
         </div>
 
         {/* --- Input --- */}
         <div className="p-8">
+          {lockError && (
+            <div className="max-w-3xl mx-auto mb-4 bg-red-50 border border-red-200 text-red-600 text-xs font-bold px-5 py-3 rounded-2xl">
+              {lockError}
+            </div>
+          )}
+
+          {/* Locking funds overlay message */}
+          {lockingFunds && (
+            <div className="max-w-3xl mx-auto mb-4 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold px-5 py-3 rounded-2xl flex items-center gap-3">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              HashPack is opening — approve the HBAR payment to lock funds in escrow...
+            </div>
+          )}
+
           <div className="max-w-3xl mx-auto bg-slate-50 rounded-[2.5rem] border border-slate-200 p-2 shadow-inner focus-within:border-blue-300 transition-all">
             <textarea
               value={prompt}
@@ -254,20 +338,20 @@ export default function ChatLayout() {
                   <option value="IMAGE">IMAGE</option>
                 </select>
                 <select value={modelPoolType} onChange={(e) => setModelPoolType(e.target.value)} className="bg-white border border-slate-200 text-[10px] font-black rounded-full px-3 py-1.5 outline-none cursor-pointer hover:border-blue-300 transition-colors">
-  <option value="PLATFORM">PLATFORM</option>
-  <option value="USER">USER</option>
-</select>
+                  <option value="PLATFORM">PLATFORM</option>
+                  <option value="USER">USER</option>
+                </select>
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-3 py-1">
                   <input type="number" value={reward} onChange={(e) => setReward(Number(e.target.value))} className="w-8 text-[10px] font-bold text-blue-600 outline-none" />
                   <span className="text-[10px] font-black text-slate-400 uppercase">HBAR</span>
                 </div>
               </div>
-              <button 
-                onClick={sendPrompt} 
-                disabled={!prompt.trim() || isPending} 
+              <button
+                onClick={sendPrompt}
+                disabled={!prompt.trim() || isExecuting}
                 className="bg-blue-600 text-white px-8 py-2 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-blue-700 disabled:opacity-30 transition-all"
               >
-                {isPending ? 'Competing...' : 'Execute'}
+                {lockingFunds ? 'Locking Funds...' : isPending ? 'Competing...' : 'Execute'}
               </button>
             </div>
           </div>

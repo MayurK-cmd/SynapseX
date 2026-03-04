@@ -18,12 +18,14 @@ export const dappConnector = new DAppConnector(
     icons: [`${window.location.origin}/icon.png`],
   },
   LedgerId.TESTNET,
-   import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
-   
-  
-  Object.values(HederaJsonRpcMethod),
+  import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
+  [
+    ...Object.values(HederaJsonRpcMethod),
+    "eth_sendTransaction",
+    "eth_accounts",
+  ],
   [HederaSessionEvent.ChainChanged, HederaSessionEvent.AccountsChanged],
-  [HederaChainId.Testnet]
+  [HederaChainId.Testnet, "eip155:296"],
 );
 
 await dappConnector.init({ logger: "error" });
@@ -66,27 +68,35 @@ export default function WalletConnect() {
   };
 
   const connectWallet = async () => {
-    try {
-      setIsConnecting(true);
-      await dappConnector.openModal();
+  try {
+    setIsConnecting(true);
 
-      const session = dappConnector.signers[0];
-      if (session) {
-        const account = session.getAccountId().toString();
-        setAccountId(account);
-        showToast("Wallet Connected Successfully");
-      }
-
-      dappConnector.onSessionIframeUpdated = (session) => {
-        const account = session.signers[0]?.getAccountId().toString();
-        if (account) setAccountId(account);
-      };
-    } catch (err) {
-      showToast(err.message || "Connection failed", "error");
-    } finally {
-      setIsConnecting(false);
+    // Clear old session before connecting new one
+    if (dappConnector.signers?.length > 0) {
+      try {
+        await dappConnector.disconnectAll();
+      } catch (_) {}
     }
-  };
+
+    await dappConnector.openModal();
+
+    const session = dappConnector.signers[0];
+    if (session) {
+      const account = session.getAccountId().toString();
+      setAccountId(account);
+      showToast("Wallet Connected Successfully");
+    }
+
+    dappConnector.onSessionIframeUpdated = (session) => {
+      const account = session.signers[0]?.getAccountId().toString();
+      if (account) setAccountId(account);
+    };
+  } catch (err) {
+    showToast(err.message || "Connection failed", "error");
+  } finally {
+    setIsConnecting(false);
+  }
+};
 
   const login = async () => {
     try {
@@ -172,7 +182,11 @@ export default function WalletConnect() {
                 </button>
                 
                 <button 
-                  onClick={() => setAccountId("")}
+                  onClick={async () =>{ setAccountId(""); localStorage.removeItem("token");
+                    if(dappConnector.signers?.length>0){
+                      try{await dappConnector.disconnectAll(); }catch (_){}
+                    }
+                  }}
                   className="text-xs font-bold text-slate-400 hover:text-slate-600 tracking-wide transition uppercase cursor-pointer"
                 >
                   Switch Wallet

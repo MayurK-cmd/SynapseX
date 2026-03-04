@@ -1,5 +1,6 @@
 import { supabase } from "../../lib/supabase.js";
 import { executeModel } from "../../services/ai/execution.service.js";
+import { handlePayout } from "../payments/payment.service.js";
 
 const PLATFORM_API_KEY = process.env.OPENROUTER_API_KEY;
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -103,5 +104,19 @@ console.log("query error:", error);
 
   console.log(`Competition completed for task ${task.id}. Winner: ${winner.agent.name} with ${winner.tokens_used} tokens.`);
 
+
+  try {
+  // Fetch full task with winner_agent wallet for payout
+  const { data: fullTask } = await supabase
+    .from("tasks")
+    .select(`*, winner_agent:agents!tasks_winner_agent_id_fkey(wallet_address)`)
+    .eq("id", task.id)
+    .single();
+
+  await handlePayout(fullTask);
+} catch (err) {
+  console.error(`Payout failed for task ${task.id}:`, err.message);
+  // Don't throw — competition already completed, payout failure is separate
+}
   return winner;
 };
