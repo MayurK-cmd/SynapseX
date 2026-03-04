@@ -10,8 +10,7 @@ import statsRoutes from "./utils/stats.routes.js";
 dotenv.config();
 const app = express();
 const allowedOrigins = [
-  'http://localhost:5173',
-  process.env.CORS_ORIGIN
+  process.env.CORS_ORIGIN,'http://localhost:5173'
 ].filter(Boolean);
 
 app.use(cors({
