@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from "../../api/axios";
-import { dappConnector } from './WalletConnect';
+
 
 const Dashboard = ({ accountId }) => {
   const navigate = useNavigate();
@@ -42,14 +42,18 @@ const Dashboard = ({ accountId }) => {
     fetchAll();
   }, [API, token]);
 
-  useEffect(() => {
-    const signer = dappConnector.signers?.[0];
-    if (signer) setWalletAddress(signer.getAccountId().toString());
-    dappConnector.onSessionIframeCreated = (session) => {
-      const account = session.signers?.[0]?.getAccountId().toString();
-      if (account) setWalletAddress(account);
-    };
+  useEffect(()=>{
+    if(!window.ethereum) return;
+
+    window.ethereum.request({method:"eth_accounts"})
+      .then(accounts => setWalletAddress(accounts[0] || ""));
+
+    window.ethereum.on("accountsChanged",(accounts) => {
+      setWalletAddress(accounts[0] || "");
+    });
   }, []);
+
+  
 
   const successRate = stats.total_tasks > 0
     ? Math.round((stats.completed_tasks / stats.total_tasks) * 100)

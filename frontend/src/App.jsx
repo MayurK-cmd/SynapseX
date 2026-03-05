@@ -1,6 +1,6 @@
 import { BrowserRouter, Router, Route, Routes } from "react-router-dom";
 import Landing from "./Landing";
-import WalletConnect from "./pages/WalletConnect";
+import MetaMaskAuth from "./pages/MetaMaskAuth";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import UserLookup from "./pages/UserLookup";
@@ -12,7 +12,7 @@ const App = () => {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/wallet-connect" element={<WalletConnect />} />
+        <Route path="/wallet-connect" element={<MetaMaskAuth />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/search" element={<UserLookup />} />

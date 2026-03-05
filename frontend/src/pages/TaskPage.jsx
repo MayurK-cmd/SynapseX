@@ -1,29 +1,56 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import { dappConnector } from "./WalletConnect";
 import { ethers } from "ethers";
-import { TransferTransaction, Hbar } from "@hashgraph/sdk";
 
-const ESCROW_ACCOUNT = "0.0.8064708";
+const ESCROW_CONTRACT_ADDRESS = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
+const ESCROW_ABI = [
+  "function lockTask(bytes32 taskId) external payable",
+];
+
+const getMetaMaskProvider = () => {
+  if (!window.ethereum) throw new Error("MetaMask not installed");
+  if (window.ethereum.providers) {
+    const mm = window.ethereum.providers.find(p => p.isMetaMask && !p.isPhantom);
+    if (!mm) throw new Error("MetaMask not found");
+    return new ethers.BrowserProvider(mm);
+  }
+  if (window.ethereum.isPhantom) throw new Error("Please use MetaMask not Phantom");
+  return new ethers.BrowserProvider(window.ethereum);
+};
 
 const lockTaskOnChain = async (taskId, rewardHbar) => {
-  const session = dappConnector.signers[0];
-  if (!session) throw new Error("Wallet not connected");
+  const provider = getMetaMaskProvider();
 
-  const userAccountId = session.getAccountId().toString();
+  try {
+    await provider.send("wallet_switchEthereumChain", [{ chainId: "0x128" }]);
+  } catch (err) {
+    if (err.code === 4902 || err?.error?.code === 4902) {
+      await provider.send("wallet_addEthereumChain", [{
+        chainId: "0x128",
+        chainName: "Hedera Testnet",
+        nativeCurrency: { name: "HBAR", symbol: "HBAR", decimals: 18 },
+        rpcUrls: ["https://testnet.hashio.io/api"],
+        blockExplorerUrls: ["https://hashscan.io/testnet"],
+      }]);
+    } else throw err;
+  }
 
-  const transaction = new TransferTransaction()
-    .addHbarTransfer(userAccountId, new Hbar(-rewardHbar))
-    .addHbarTransfer(ESCROW_ACCOUNT, new Hbar(rewardHbar))
-    .setTransactionMemo(`SynapseX Escrow: ${taskId}`);
+  const signer = await provider.getSigner();
+  const contract = new ethers.Contract(ESCROW_CONTRACT_ADDRESS, ESCROW_ABI, signer);
 
-  // executeWithSigner handles freeze + sign + execute internally
-  const result = await session.call(transaction);
+  const taskIdBytes32 = ethers.id(taskId);
 
-  const txId = result?.transactionId?.toString() ?? "completed";
-  console.log("Escrow transfer tx:", txId);
-  return txId;
+  // Hedera EVM: 1 HBAR = 1e8 tinybars at EVM level
+  // BUT MetaMask shows decimals:18 so we use parseEther which = 1e18
+  // Hedera internally maps 1e18 → 10 HBAR correctly via the JSON-RPC relay
+  const valueInWeibars = ethers.parseEther(String(rewardHbar));
+
+  const tx = await contract.lockTask(taskIdBytes32, { value: valueInWeibars });
+  console.log("lockTask tx sent:", tx.hash);
+  await tx.wait();
+  console.log("lockTask confirmed:", tx.hash);
+  return tx.hash;
 };
 
 export default function ChatLayout() {
@@ -78,9 +105,7 @@ export default function ChatLayout() {
   const sendPrompt = async () => {
     if (!prompt.trim()) return;
     setLockError("");
-    const session = dappConnector.signers[0];
-  console.log("Session topic:", session?.topic);
-  console.log("Session chains:", session?.session?.namespaces);
+    
 
     // Step 1: Create task in DB first to get the task ID
     // We need the ID before locking on-chain
@@ -107,7 +132,7 @@ export default function ChatLayout() {
       return;
     }
 
-    // Step 2: Lock funds in escrow — HashPack will pop open here
+    // Step 2: Lock funds in escrow — MetaMask will pop open here
     try {
       setLockingFunds(true);
       const txHash = await lockTaskOnChain(newTask.id, reward);
@@ -124,7 +149,7 @@ export default function ChatLayout() {
       });
     } catch (err) {
       console.error("Escrow lock failed:", err);
-      setLockError("Payment failed: " + (err.message || "HashPack rejected or insufficient funds"));
+      setLockError("Payment failed: " + (err.message || "MetaMask rejected or insufficient funds"));
       setLockingFunds(false);
       // Task was created but not funded — you may want to cancel it here
       return;
@@ -319,7 +344,7 @@ export default function ChatLayout() {
           {lockingFunds && (
             <div className="max-w-3xl mx-auto mb-4 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold px-5 py-3 rounded-2xl flex items-center gap-3">
               <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-              HashPack is opening — approve the HBAR payment to lock funds in escrow...
+              MetaMask is opening — approve the HBAR payment to lock funds in escrow...
             </div>
           )}
 

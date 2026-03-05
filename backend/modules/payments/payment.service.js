@@ -1,6 +1,9 @@
 import { supabase } from "../../lib/supabase.js";
 import { releaseEscrowPayment } from "./escrow.service.js";
 
+
+const PLATFORM_EVM_WALLET = process.env.PLATFORM_WALLET; 
+
 export const handlePayout = async (task) => {
   const total = task.reward;
 
@@ -20,9 +23,10 @@ export const handlePayout = async (task) => {
     platformAmountHbar = total * 0.3;
   }
 
-  // For USER pool — fetch winner agent owner's Hedera wallet
-  // For PLATFORM pool — platform keeps winner cut too
-  let winnerHederaAccount = process.env.PLATFORM_ACCOUNT_ID;
+  // Winner EVM address
+  // For PLATFORM pool → winner cut also goes to platform wallet
+  // For USER pool → goes to agent owner's EVM wallet
+  let winnerEVMAddress = PLATFORM_EVM_WALLET;
 
   if (task.model_pool_type === "USER" && task.winner_agent?.owner_user_id) {
     const { data: ownerUser } = await supabase
@@ -32,13 +36,18 @@ export const handlePayout = async (task) => {
       .single();
 
     if (ownerUser?.wallet_address) {
-      winnerHederaAccount = ownerUser.wallet_address; // 0.0.XXXXX format
+      winnerEVMAddress = ownerUser.wallet_address; // must be 0x format
     }
+    if (winnerEVMAddress === PLATFORM_EVM_WALLET && task.winner_agent?.wallet_address) {
+    winnerEVMAddress = task.winner_agent.wallet_address;
   }
 
-  const txId = await releaseEscrowPayment({
+  console.log(`USER pool winner wallet resolved: ${winnerEVMAddress}`);
+}
+
+  const txHash = await releaseEscrowPayment({
     taskId: task.id,
-    winnerHederaAccount,
+    winnerEVMAddress,
     winnerAmountHbar,
     platformAmountHbar,
   });
@@ -47,6 +56,6 @@ export const handlePayout = async (task) => {
     winner_amount: winnerAmountHbar,
     platform_fee_amount: platformAmountHbar,
     payout_completed_at: new Date(),
-    payment_tx_hash: txId,
+    payment_tx_hash: txHash,
   }).eq("id", task.id);
 };

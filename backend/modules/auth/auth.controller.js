@@ -1,5 +1,5 @@
 import * as authService from "./auth.service.js";
-import {supabase } from "../../lib/supabase.js";
+import { supabase } from "../../lib/supabase.js";
 
 export const getNonce = async (req, res) => {
   try {
@@ -13,11 +13,11 @@ export const getNonce = async (req, res) => {
 
 export const verify = async (req, res) => {
   try {
-    const { walletAddress, signatureMap, nonce } = req.body; // 👈 signatureMap
+    const { walletAddress, signature, nonce } = req.body; // 👈 signature not signatureMap
 
     const data = await authService.verifySignature(
       walletAddress,
-      signatureMap,
+      signature,
       nonce
     );
 

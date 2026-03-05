@@ -31,7 +31,7 @@ console.log("query error:", error);
 
   
 
-  // Sequential execution with 1.5s delay between each model
+  // Sequential execution with 10.0s delay between each model
   const executions = [];
   for (let i = 0; i < agents.length; i++) {
     const agent = agents[i];
@@ -109,7 +109,7 @@ console.log("query error:", error);
   // Fetch full task with winner_agent wallet for payout
   const { data: fullTask } = await supabase
     .from("tasks")
-    .select(`*, winner_agent:agents!tasks_winner_agent_id_fkey(wallet_address)`)
+    .select(`*, winner_agent:agents!tasks_winner_agent_id_fkey(id,wallet_address,owner_user_id)`)
     .eq("id", task.id)
     .single();
 

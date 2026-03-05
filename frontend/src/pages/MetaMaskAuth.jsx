@@ -1,36 +1,8 @@
 import React, { useState, useEffect } from "react";
-import {
-  DAppConnector,
-  HederaJsonRpcMethod,
-  HederaSessionEvent,
-  HederaChainId,
-} from "@hashgraph/hedera-wallet-connect";
-import { LedgerId } from "@hashgraph/sdk";
+import { ethers } from "ethers";
 import api from "../../api/axios";
 import { useNavigate } from "react-router-dom";
 
-// Configuration
-export const dappConnector = new DAppConnector(
-  {
-    name: "SynapseX",
-    description: "Autonomous AI Agent Marketplace",
-    url: window.location.origin,
-    icons: [`${window.location.origin}/icon.png`],
-  },
-  LedgerId.TESTNET,
-  import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
-  [
-    ...Object.values(HederaJsonRpcMethod),
-    "eth_sendTransaction",
-    "eth_accounts",
-  ],
-  [HederaSessionEvent.ChainChanged, HederaSessionEvent.AccountsChanged],
-  [HederaChainId.Testnet, "eip155:296"],
-);
-
-await dappConnector.init({ logger: "error" });
-
-// Simple Custom Toast Component
 const Toast = ({ message, type, isVisible, onClose }) => {
   useEffect(() => {
     if (isVisible) {
@@ -53,8 +25,8 @@ const Toast = ({ message, type, isVisible, onClose }) => {
   );
 };
 
-export default function WalletConnect() {
-  const [accountId, setAccountId] = useState("");
+export default function MetaMaskAuth() {
+  const [account, setAccount] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
   const navigate = useNavigate();
@@ -63,87 +35,114 @@ export default function WalletConnect() {
     setToast({ show: true, message, type });
   };
 
-  const handleLogin = () => {
-    navigate('/dashboard');
+  const getProvider = () => {
+    if (!window.ethereum) throw new Error("MetaMask not installed");
+     if (window.ethereum.providers) {
+    const metamask = window.ethereum.providers.find(p => p.isMetaMask && !p.isPhantom);
+    if (!metamask) throw new Error("MetaMask not found. Please install MetaMask.");
+    return new ethers.BrowserProvider(metamask);
+  }
+
+  // Only one wallet — check it's MetaMask not Phantom
+  if (window.ethereum.isPhantom) {
+    throw new Error("Please use MetaMask, not Phantom.");
+  }
+
+  if (!window.ethereum.isMetaMask) {
+    throw new Error("MetaMask not found. Please install MetaMask.");
+  }
+    return new ethers.BrowserProvider(window.ethereum);
+  };
+
+  const switchToHederaTestnet = async (provider) => {
+    try {
+      await provider.send("wallet_switchEthereumChain", [{ chainId: "0x128" }]);
+    } catch (err) {
+      if (err.code === 4902 || err?.error?.code === 4902) {
+        await provider.send("wallet_addEthereumChain", [{
+          chainId: "0x128",
+          chainName: "Hedera Testnet",
+          nativeCurrency: { name: "HBAR", symbol: "HBAR", decimals: 18 },
+          rpcUrls: ["https://testnet.hashio.io/api"],
+          blockExplorerUrls: ["https://hashscan.io/testnet"],
+        }]);
+      } else {
+        throw err;
+      }
+    }
   };
 
   const connectWallet = async () => {
-  try {
-    setIsConnecting(true);
+    try {
+      setIsConnecting(true);
+      localStorage.removeItem("token");
 
-    // Clear old session before connecting new one
-    if (dappConnector.signers?.length > 0) {
-      try {
-        await dappConnector.disconnectAll();
-      } catch (_) {}
-    }
+      const provider = getProvider();
+      await switchToHederaTestnet(provider);
 
-    await dappConnector.openModal();
-
-    const session = dappConnector.signers[0];
-    if (session) {
-      const account = session.getAccountId().toString();
-      setAccountId(account);
+      const accounts = await provider.send("eth_requestAccounts", []);
+      setAccount(accounts[0]);
       showToast("Wallet Connected Successfully");
+    } catch (err) {
+      showToast(err.message || "Connection failed", "error");
+    } finally {
+      setIsConnecting(false);
     }
-
-    dappConnector.onSessionIframeUpdated = (session) => {
-      const account = session.signers[0]?.getAccountId().toString();
-      if (account) setAccountId(account);
-    };
-  } catch (err) {
-    showToast(err.message || "Connection failed", "error");
-  } finally {
-    setIsConnecting(false);
-  }
-};
+  };
 
   const login = async () => {
     try {
-      const { data } = await api.post("/auth/nonce", { walletAddress: accountId });
+      const provider = getProvider();
+      const signer = await provider.getSigner();
+
+      // Get nonce from backend
+      const { data } = await api.post("/auth/nonce", { walletAddress: account });
       const nonce = data.nonce;
 
-      const result = await dappConnector.walletConnectClient.request({
-        topic: dappConnector.signers[0].topic,
-        chainId: "hedera:testnet",
-        request: {
-          method: "hedera_signMessage",
-          params: {
-            signerAccountId: `hedera:testnet:${accountId}`,
-            message: btoa(nonce),
-          },
-        },
-      });
+      // Sign the nonce with MetaMask
+      const signature = await signer.signMessage(nonce);
 
+      // Verify with backend
       const res = await api.post("/auth/verify", {
-        walletAddress: accountId,
-        signatureMap: result.signatureMap,
+        walletAddress: account,
+        signature,
         nonce,
       });
 
       localStorage.setItem("token", res.data.token);
       showToast("Identity Verified. Welcome back.");
-      
-      // Short delay so they see the success toast before navigation
-      setTimeout(handleLogin, 1000);
+      setTimeout(() => navigate('/dashboard'), 1000);
     } catch (err) {
       showToast(err.message || "Login failed", "error");
     }
   };
 
+  // Check if already connected on mount
+  useEffect(() => {
+    if (window.ethereum) {
+      window.ethereum.request({ method: "eth_accounts" }).then((accounts) => {
+        if (accounts.length > 0) setAccount(accounts[0]);
+      });
+
+      window.ethereum.on("accountsChanged", (accounts) => {
+        setAccount(accounts[0] || "");
+        localStorage.removeItem("token");
+      });
+    }
+  }, []);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-white selection:bg-blue-100">
-      <Toast 
-        isVisible={toast.show} 
-        message={toast.message} 
-        type={toast.type} 
-        onClose={() => setToast({ ...toast, show: false })} 
+      <Toast
+        isVisible={toast.show}
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast({ ...toast, show: false })}
       />
 
       <div className="w-full max-w-md p-12 border border-slate-100 rounded-[3rem] bg-white shadow-[0_32px_64px_-12px_rgba(0,0,0,0.08)] text-center relative overflow-hidden">
-        {/* Subtle background glow */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-50 rounded-full blur-3xl opacity-50" />
-        
+
         <div className="relative z-10">
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-blue-100 ring-4 ring-blue-50">
             <span className="text-white font-bold text-3xl italic">S</span>
@@ -155,7 +154,7 @@ export default function WalletConnect() {
           </p>
 
           <div className="space-y-4">
-            {!accountId ? (
+            {!account ? (
               <button
                 onClick={connectWallet}
                 disabled={isConnecting}
@@ -164,28 +163,27 @@ export default function WalletConnect() {
                 {isConnecting ? (
                   <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                 ) : (
-                  "Connect HashPack"
+                  "Connect MetaMask"
                 )}
               </button>
             ) : (
               <div className="space-y-4 animate-in fade-in zoom-in-95 duration-500">
-                <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl group transition-all hover:border-blue-200">
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:border-blue-200 transition-all">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Active Account</p>
-                  <p className="text-slate-900 font-mono text-sm truncate">{accountId}</p>
+                  <p className="text-slate-900 font-mono text-sm truncate">{account}</p>
                 </div>
-                
+
                 <button
                   onClick={login}
                   className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all active:scale-[0.98] cursor-pointer"
                 >
                   Verify Identity
                 </button>
-                
-                <button 
-                  onClick={async () =>{ setAccountId(""); localStorage.removeItem("token");
-                    if(dappConnector.signers?.length>0){
-                      try{await dappConnector.disconnectAll(); }catch (_){}
-                    }
+
+                <button
+                  onClick={() => {
+                    setAccount("");
+                    localStorage.removeItem("token");
                   }}
                   className="text-xs font-bold text-slate-400 hover:text-slate-600 tracking-wide transition uppercase cursor-pointer"
                 >

@@ -1,6 +1,5 @@
 import { supabase } from "../../lib/supabase.js";
-import { PublicKey } from "@hashgraph/sdk";
-import { proto } from "@hashgraph/proto";
+import { ethers } from "ethers";
 import crypto from "crypto";
 import { signToken } from "../../utils/jwt.js";
 
@@ -9,68 +8,48 @@ export const generateNonce = async (walletAddress) => {
 
   const { error } = await supabase
     .from("nonces")
-    .upsert({ wallet_address: walletAddress, nonce });
+    .upsert(
+      { wallet_address: walletAddress.toLowerCase(), nonce },
+      { onConflict: "wallet_address" }
+    );
 
   if (error) throw error;
-
   return nonce;
 };
 
-export const verifySignature = async (walletAddress, signatureMap, nonce) => {
+export const verifySignature = async (walletAddress, signature, nonce) => {
   // 1. Check nonce is valid
   const { data, error } = await supabase
     .from("nonces")
     .select("*")
-    .eq("wallet_address", walletAddress)
+    .eq("wallet_address", walletAddress.toLowerCase())
     .single();
 
   if (error || !data || data.nonce !== nonce) {
     throw new Error("Invalid nonce");
-  } try {
-    const sigMapBytes = Buffer.from(signatureMap, "base64");
-const sigMap = proto.SignatureMap.decode(sigMapBytes);
+  }
 
-const sigPair = sigMap.sigPair[0];
-const rawPubKeyHex = Buffer.from(sigPair.pubKeyPrefix).toString("hex");
-const sig = Buffer.from(sigPair.ed25519);
-const pubKey = PublicKey.fromStringED25519(rawPubKeyHex);
+  // 2. Recover signer address from signature
+  const recoveredAddress = ethers.verifyMessage(nonce, signature);
 
-const btoaNonce = btoa(nonce); // "NTA0OWU5MmQx..."
-
-const candidates = {
-  "raw nonce utf8":         Buffer.from(nonce, "utf8"),
-  "btoa(nonce) utf8":       Buffer.from(btoaNonce, "utf8"),
-  "btoa(nonce) base64":     Buffer.from(btoaNonce, "base64"),
-  "nonce hex":              Buffer.from(nonce, "hex"),
-  "nonce base64":           Buffer.from(nonce, "base64"),
-};
-
-for (const [label, msgBytes] of Object.entries(candidates)) {
-  const valid = pubKey.verify(msgBytes, sig);
-  console.log(`[${label}] length=${msgBytes.length} valid=${valid}`);
-
-  console.log("sig hex:", sig.toString("hex"));
-console.log("sigPair keys:", Object.keys(sigPair));
-
-}
-  } catch (err) {
-  throw new Error("Signature verification failed: " + err.message);
-}
+  if (recoveredAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+    throw new Error("Signature verification failed");
+  }
 
   // 3. Delete used nonce
-  await supabase.from("nonces").delete().eq("wallet_address", walletAddress);
+  await supabase.from("nonces").delete().eq("wallet_address", walletAddress.toLowerCase());
 
-  // 4. Check if user exists, create if not
+  // 4. Upsert user
   let { data: user } = await supabase
     .from("users")
     .select("*")
-    .eq("wallet_address", walletAddress)
+    .eq("wallet_address", walletAddress.toLowerCase())
     .single();
 
   if (!user) {
     const { data: newUser, error: createError } = await supabase
       .from("users")
-      .insert({ wallet_address: walletAddress })
+      .insert({ wallet_address: walletAddress.toLowerCase() })
       .select()
       .single();
 

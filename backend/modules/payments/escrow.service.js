@@ -1,33 +1,42 @@
-import {
-  Client,
-  TransferTransaction,
-  Hbar,
-} from "@hashgraph/sdk";
+import { ethers } from "ethers";
 
-const client = Client.forTestnet().setOperator(
-  process.env.HEDERA_ACCOUNT_ID,
-  process.env.HEDERA_PRIVATE_KEY
-);
+const ESCROW_CONTRACT_ADDRESS = process.env.ESCROW_CONTRACT_ADDRESS;
+
+const ESCROW_ABI = [
+  "function releasePayment(bytes32 taskId, address winner, uint256 winnerAmount, uint256 platformAmount) external",
+];
+
+const provider = new ethers.JsonRpcProvider("https://testnet.hashio.io/api");
+const operatorWallet = new ethers.Wallet(process.env.PLATFORM_PRIVATE_KEY, provider);
+const contract = new ethers.Contract(ESCROW_CONTRACT_ADDRESS, ESCROW_ABI, operatorWallet);
 
 export const releaseEscrowPayment = async ({
   taskId,
-  winnerHederaAccount,
+  winnerEVMAddress,
   winnerAmountHbar,
   platformAmountHbar,
 }) => {
-  const total = winnerAmountHbar + platformAmountHbar;
+  const taskIdBytes32 = ethers.id(taskId);
 
-  console.log(`Paying ${winnerAmountHbar} HBAR → ${winnerHederaAccount}`);
-  console.log(`Paying ${platformAmountHbar} HBAR → ${process.env.PLATFORM_ACCOUNT_ID}`);
+  // Hedera EVM uses tinybars: 1 HBAR = 1e8 tinybars
+  const winnerTinybars = BigInt(Math.round(winnerAmountHbar * 100_000_000));
+  const platformTinybars = BigInt(Math.round(platformAmountHbar * 100_000_000));
+  const totalTinybars = winnerTinybars + platformTinybars;
 
-  const tx = await new TransferTransaction()
-    .addHbarTransfer(process.env.HEDERA_ACCOUNT_ID, new Hbar(-total))
-    .addHbarTransfer(winnerHederaAccount, new Hbar(winnerAmountHbar))
-    .addHbarTransfer(process.env.PLATFORM_ACCOUNT_ID, new Hbar(platformAmountHbar))
-    .setTransactionMemo(`SynapseX Payout: ${taskId}`)
-    .execute(client);
+  console.log(`Releasing ${winnerAmountHbar} HBAR (${winnerTinybars} tinybars) → ${winnerEVMAddress}`);
+  console.log(`Releasing ${platformAmountHbar} HBAR (${platformTinybars} tinybars) → platform wallet`);
+  console.log(`Total: ${totalTinybars} tinybars`);
 
-  const receipt = await tx.getReceipt(client);
-  console.log(`Payout status: ${receipt.status}`);
-  return tx.transactionId.toString();
+  const tx = await contract.releasePayment(
+    taskIdBytes32,
+    winnerEVMAddress,
+    winnerTinybars,
+    platformTinybars,
+    { gasLimit: 300000 }
+  );
+
+  console.log("releasePayment tx sent:", tx.hash);
+  await tx.wait();
+  console.log("releasePayment confirmed:", tx.hash);
+  return tx.hash;
 };
