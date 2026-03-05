@@ -21,7 +21,6 @@ const getMetaMaskProvider = () => {
 
 const lockTaskOnChain = async (taskId, rewardHbar) => {
   const provider = getMetaMaskProvider();
-
   try {
     await provider.send("wallet_switchEthereumChain", [{ chainId: "0x128" }]);
   } catch (err) {
@@ -35,17 +34,10 @@ const lockTaskOnChain = async (taskId, rewardHbar) => {
       }]);
     } else throw err;
   }
-
   const signer = await provider.getSigner();
   const contract = new ethers.Contract(ESCROW_CONTRACT_ADDRESS, ESCROW_ABI, signer);
-
   const taskIdBytes32 = ethers.id(taskId);
-
-  // Hedera EVM: 1 HBAR = 1e8 tinybars at EVM level
-  // BUT MetaMask shows decimals:18 so we use parseEther which = 1e18
-  // Hedera internally maps 1e18 → 10 HBAR correctly via the JSON-RPC relay
   const valueInWeibars = ethers.parseEther(String(rewardHbar));
-
   const tx = await contract.lockTask(taskIdBytes32, { value: valueInWeibars });
   console.log("lockTask tx sent:", tx.hash);
   await tx.wait();
@@ -53,6 +45,157 @@ const lockTaskOnChain = async (taskId, rewardHbar) => {
   return tx.hash;
 };
 
+// ─── Model Selection Popup ───────────────────────────────────────────────────
+function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
+  const [models, setModels] = useState([]);
+  const [selected, setSelected] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const res = await fetch(
+          `${API}/agents/available?pool=${poolType}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        setModels(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to fetch models:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchModels();
+  }, [poolType, token, API]);
+
+  const toggle = (id) => {
+    setSelected(prev =>
+      prev.includes(id)
+        ? prev.filter(x => x !== id)
+        : prev.length < 3 ? [...prev, id] : prev
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+
+        {/* Header */}
+        <div className="px-8 pt-8 pb-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[.3em]">
+              {poolType} Pool
+            </p>
+            <button
+              onClick={onClose}
+              className="text-[10px] font-black text-slate-400 hover:text-slate-700 uppercase tracking-widest"
+            >
+              ✕
+            </button>
+          </div>
+          <h2 className="text-xl font-black text-slate-900">Choose Your Competitors</h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Select up to 3 models — they will compete for the bounty
+          </p>
+        </div>
+
+        {/* Selected count indicator */}
+        <div className="px-8 pb-3">
+          <div className="flex gap-2">
+            {[0, 1, 2].map(i => (
+              <div
+                key={i}
+                className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                  i < selected.length ? 'bg-blue-600' : 'bg-slate-100'
+                }`}
+              />
+            ))}
+          </div>
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1.5">
+            {selected.length}/3 selected
+          </p>
+        </div>
+
+        {/* Model list */}
+        <div className="px-8 pb-4 max-h-72 overflow-y-auto space-y-2">
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : models.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-sm font-bold text-slate-400">No models available</p>
+            </div>
+          ) : (
+            models.map(model => {
+              const isSelected = selected.includes(model.id);
+              const isDisabled = !isSelected && selected.length >= 3;
+              return (
+                <div
+                  key={model.id}
+                  onClick={() => !isDisabled && toggle(model.id)}
+                  className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'border-blue-300 bg-blue-50 shadow-sm'
+                      : isDisabled
+                      ? 'border-slate-100 bg-slate-50 opacity-40 cursor-not-allowed'
+                      : 'border-slate-100 hover:border-blue-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                      isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300'
+                    }`}>
+                      {isSelected && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">{model.name}</p>
+                      <p className="text-[10px] font-mono text-slate-400 truncate">{model.model_identifier}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0 ml-3">
+                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${
+                      model.model_source === 'PLATFORM'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'bg-violet-50 text-violet-600'
+                    }`}>
+                      {model.model_source}
+                    </span>
+                    <span className="text-[9px] font-bold text-amber-500">{model.reputation} rep</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-8 pb-8 pt-2 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-2xl border border-slate-200 text-xs font-black text-slate-500 hover:bg-slate-50 uppercase tracking-widest transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => selected.length > 0 && onConfirm(selected)}
+            disabled={selected.length === 0}
+            className="flex-2 flex-grow py-3 px-8 rounded-2xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-30 transition-all shadow-lg shadow-blue-100"
+          >
+            Confirm {selected.length > 0 ? `(${selected.length})` : ''}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function ChatLayout() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
@@ -67,6 +210,10 @@ export default function ChatLayout() {
   const [modelPoolType, setModelPoolType] = useState("PLATFORM");
   const [lockingFunds, setLockingFunds] = useState(false);
   const [lockError, setLockError] = useState("");
+
+  // Model selection state
+  const [showModelPopup, setShowModelPopup] = useState(false);
+  const [selectedModelIds, setSelectedModelIds] = useState([]);
 
   const loadTasks = useCallback(async () => {
     try {
@@ -99,16 +246,30 @@ export default function ChatLayout() {
     setSelectedTask(null);
     setPrompt("");
     setLockError("");
+    setSelectedModelIds([]);
   };
 
-  // 🔑 Main function — lock funds first, then create task
+  // When pool type changes, reset model selection and open popup
+  const handlePoolChange = (newPool) => {
+    setModelPoolType(newPool);
+    setSelectedModelIds([]);
+    setShowModelPopup(true);
+  };
+
+  const handleModelsConfirmed = (ids) => {
+    setSelectedModelIds(ids);
+    setShowModelPopup(false);
+  };
+
   const sendPrompt = async () => {
     if (!prompt.trim()) return;
+    if (selectedModelIds.length === 0) {
+      setLockError("Please select at least 1 model to compete.");
+      return;
+    }
     setLockError("");
-    
 
-    // Step 1: Create task in DB first to get the task ID
-    // We need the ID before locking on-chain
+    // Step 1: Create task
     let newTask;
     try {
       const res = await fetch(`${API}/tasks`, {
@@ -122,7 +283,8 @@ export default function ChatLayout() {
           reward,
           type,
           model_pool_type: modelPoolType,
-          reward_amount: reward, // store reward_amount for payout service
+          reward_amount: reward,
+          selected_agent_ids: selectedModelIds, // 👈 send selected models
         }),
       });
       newTask = await res.json();
@@ -132,13 +294,12 @@ export default function ChatLayout() {
       return;
     }
 
-    // Step 2: Lock funds in escrow — MetaMask will pop open here
+    // Step 2: Lock funds — MetaMask pops open
     try {
       setLockingFunds(true);
       const txHash = await lockTaskOnChain(newTask.id, reward);
       console.log("Escrow locked, tx:", txHash);
 
-      // Save escrow tx hash to DB
       await fetch(`${API}/tasks/${newTask.id}/escrow`, {
         method: "PATCH",
         headers: {
@@ -151,21 +312,20 @@ export default function ChatLayout() {
       console.error("Escrow lock failed:", err);
       setLockError("Payment failed: " + (err.message || "MetaMask rejected or insufficient funds"));
       setLockingFunds(false);
-      // Task was created but not funded — you may want to cancel it here
       return;
     } finally {
       setLockingFunds(false);
     }
 
-    // Step 3: Navigate to the task view
+    // Step 3: Navigate to task view
     setPrompt("");
+    setSelectedModelIds([]);
     await loadTasks();
     loadTask(newTask.id, true);
   };
 
   useEffect(() => {
     if (!selectedTask || selectedTask.status === "COMPLETED" || selectedTask.status === "FAILED") return;
-
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${API}/tasks/${selectedTask.id}`, {
@@ -173,7 +333,6 @@ export default function ChatLayout() {
         });
         const updatedTask = await res.json();
         setSelectedTask(updatedTask);
-
         if (updatedTask.status === "COMPLETED" || updatedTask.status === "FAILED") {
           loadTasks();
           clearInterval(interval);
@@ -182,17 +341,30 @@ export default function ChatLayout() {
         console.error("Polling error:", e);
       }
     }, 3000);
-
     return () => clearInterval(interval);
   }, [selectedTask?.id, selectedTask?.status, token, API, loadTasks]);
 
   useEffect(() => { loadTasks(); }, [loadTasks]);
+
+  // Open popup on initial mount for default pool
+  useEffect(() => { setShowModelPopup(true); }, []);
 
   const isPending = selectedTask && (selectedTask.status === "OPEN" || selectedTask.status === "IN_PROGRESS");
   const isExecuting = isPending || lockingFunds;
 
   return (
     <div className="flex h-screen bg-white font-sans text-slate-900 overflow-hidden">
+
+      {/* Model Selection Popup */}
+      {showModelPopup && (
+        <ModelSelectionPopup
+          poolType={modelPoolType}
+          token={token}
+          API={API}
+          onConfirm={handleModelsConfirmed}
+          onClose={() => setShowModelPopup(false)}
+        />
+      )}
 
       {/* --- Sidebar --- */}
       <aside className="w-80 border-r border-slate-100 flex flex-col bg-slate-50/50">
@@ -248,8 +420,6 @@ export default function ChatLayout() {
             </div>
           ) : selectedTask ? (
             <div className="max-w-3xl mx-auto space-y-10 animate-in fade-in duration-500">
-
-              {/* User Side */}
               <div className="flex flex-col items-end">
                 <div className="bg-slate-900 text-white px-6 py-4 rounded-3xl rounded-tr-none text-sm max-w-[85%] shadow-xl">
                   {selectedTask.description}
@@ -262,7 +432,6 @@ export default function ChatLayout() {
                 </div>
               </div>
 
-              {/* AI Side */}
               <div className="flex flex-col items-start">
                 <div className={`w-full bg-white border rounded-[2.5rem] rounded-tl-none p-8 transition-all ${isPending ? 'border-blue-200 shadow-blue-50 shadow-2xl' : 'border-slate-100 shadow-sm'}`}>
                   <div className="flex justify-between items-center mb-6">
@@ -340,7 +509,6 @@ export default function ChatLayout() {
             </div>
           )}
 
-          {/* Locking funds overlay message */}
           {lockingFunds && (
             <div className="max-w-3xl mx-auto mb-4 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold px-5 py-3 rounded-2xl flex items-center gap-3">
               <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
@@ -357,23 +525,52 @@ export default function ChatLayout() {
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrompt(); } }}
             />
             <div className="flex items-center justify-between px-4 pb-2">
-              <div className="flex gap-2">
-                <select value={type} onChange={(e) => setType(e.target.value)} className="bg-white border border-slate-200 text-[10px] font-black rounded-full px-3 py-1.5 outline-none cursor-pointer hover:border-blue-300 transition-colors">
+              <div className="flex gap-2 flex-wrap">
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                  className="bg-white border border-slate-200 text-[10px] font-black rounded-full px-3 py-1.5 outline-none cursor-pointer hover:border-blue-300 transition-colors"
+                >
                   <option value="TEXT">TEXT</option>
                   <option value="IMAGE">IMAGE</option>
                 </select>
-                <select value={modelPoolType} onChange={(e) => setModelPoolType(e.target.value)} className="bg-white border border-slate-200 text-[10px] font-black rounded-full px-3 py-1.5 outline-none cursor-pointer hover:border-blue-300 transition-colors">
+
+                {/* Pool selector — opens popup on change */}
+                <select
+                  value={modelPoolType}
+                  onChange={(e) => handlePoolChange(e.target.value)}
+                  className="bg-white border border-slate-200 text-[10px] font-black rounded-full px-3 py-1.5 outline-none cursor-pointer hover:border-blue-300 transition-colors"
+                >
                   <option value="PLATFORM">PLATFORM</option>
                   <option value="USER">USER</option>
                 </select>
+
+                {/* Selected models badge — click to reopen popup */}
+                <button
+                  onClick={() => setShowModelPopup(true)}
+                  className={`flex items-center gap-1.5 text-[10px] font-black rounded-full px-3 py-1.5 border transition-colors ${
+                    selectedModelIds.length > 0
+                      ? 'bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100'
+                      : 'bg-white border-slate-200 text-slate-400 hover:border-blue-300'
+                  }`}
+                >
+                  <span>{selectedModelIds.length > 0 ? `${selectedModelIds.length} Model${selectedModelIds.length > 1 ? 's' : ''} ✓` : 'Pick Models'}</span>
+                </button>
+
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-3 py-1">
-                  <input type="number" value={reward} onChange={(e) => setReward(Number(e.target.value))} className="w-8 text-[10px] font-bold text-blue-600 outline-none" />
+                  <input
+                    type="number"
+                    value={reward}
+                    onChange={(e) => setReward(Number(e.target.value))}
+                    className="w-8 text-[10px] font-bold text-blue-600 outline-none"
+                  />
                   <span className="text-[10px] font-black text-slate-400 uppercase">HBAR</span>
                 </div>
               </div>
+
               <button
                 onClick={sendPrompt}
-                disabled={!prompt.trim() || isExecuting}
+                disabled={!prompt.trim() || isExecuting || selectedModelIds.length === 0}
                 className="bg-blue-600 text-white px-8 py-2 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-blue-700 disabled:opacity-30 transition-all"
               >
                 {lockingFunds ? 'Locking Funds...' : isPending ? 'Competing...' : 'Execute'}

@@ -11,6 +11,11 @@ export const runPlatformCompetition = async (task) => {
     .select("*")
     .eq("competition_enabled", true);
 
+    
+if (task.selected_agent_ids?.length > 0) {
+  query = query.in("id", task.selected_agent_ids);
+}
+
   if (task.model_pool_type === "PLATFORM") {
     query = query.eq("model_source", "PLATFORM");
   } else if (task.model_pool_type === "USER") {

@@ -16,6 +16,7 @@ export const createTask = async ( user,body) => {
     creator_id: user.userId,
     model_pool_type: body.model_pool_type || "PLATFORM",
     status: "OPEN",
+    selected_agent_ids: body.selected_agent_ids ?? [],
   };
 
   const savedTask = await repo.createTask(task);
