@@ -69,15 +69,30 @@ console.log("query error:", error);
     }
   }
 
-  // Only consider models that actually returned tokens
-  const successful = executions.filter(e => e.tokens_used > 0);
-  if (!successful.length) throw new Error("All models failed to execute");
+const successful = executions.filter(e => e.tokens_used > 0);
+if (!successful.length) throw new Error("All models failed to execute");
 
-  // Pick winner by LEAST tokens used
-  successful.sort((a, b) => a.tokens_used - b.tokens_used);
-  const winner = successful[0];
+// Normalize tokens and latency to 0-1 range
+const maxTokens = Math.max(...successful.map(e => e.tokens_used));
+const maxLatency = Math.max(...successful.map(e => e.latency_ms));
+const minTokens = Math.min(...successful.map(e => e.tokens_used));
+const minLatency = Math.min(...successful.map(e => e.latency_ms));
 
-  //use tokens and latency and then decide
+const normalize = (val, min, max) => 
+  max === min ? 0 : (val - min) / (max - min);
+
+// Score = 60% tokens + 40% latency (lower is better)
+successful.forEach(e => {
+  e.score = (
+    0.6 * normalize(e.tokens_used, minTokens, maxTokens) +
+    0.4 * normalize(e.latency_ms, minLatency, maxLatency)
+  );
+  console.log(`[${e.agent.name}] tokens: ${e.tokens_used} | latency: ${e.latency_ms}ms | score: ${e.score.toFixed(4)}`);
+});
+
+successful.sort((a, b) => a.score - b.score);
+const winner = successful[0];
+console.log(`Winner: ${winner.agent.name} with score ${winner.score.toFixed(4)}`);
 
   // Save all entries including failed ones
   for (const entry of executions) {
@@ -87,6 +102,7 @@ console.log("query error:", error);
       response_text: entry.response_text,
       tokens_used: entry.tokens_used,
       latency_ms: entry.latency_ms,
+      score: entry.score ?? 0,
       is_winner: entry.agent.id === winner.agent.id,
     });
   }
