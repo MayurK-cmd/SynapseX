@@ -6,6 +6,11 @@ import Profile from "./pages/Profile";
 import UserLookup from "./pages/UserLookup";
 import TaskPage from "./pages/TaskPage";
 import AgentsPage from "./pages/AgentsPage";
+import Docs from "./pages/Docs"
+import Stats from "./pages/Stats";
+import Status from "./pages/Status";
+import Support from "./pages/Support";
+import Terms from "./pages/Terms";
 
 const App = () => {
   return (
@@ -18,6 +23,11 @@ const App = () => {
         <Route path="/search" element={<UserLookup />} />
         <Route path="/chat" element={<TaskPage />} />
         <Route path="/agents" element={<AgentsPage />} />
+        <Route path="/docs" element={<Docs />} />
+        <Route path="/stats" element={<Stats />} />
+        <Route path="/status" element={<Status />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/terms-of-services" element={<Terms />} />
       </Routes>
     </BrowserRouter>
   );
