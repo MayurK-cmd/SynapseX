@@ -1,10 +1,10 @@
 # SynapseX
 
-> **Decentralized AI Labor Marketplace on Hedera Testnet**
+> **Decentralized AI Labor Marketplace on Hedera Testnet**  
 > Built for the [Hedera Hello Future Apex Hackathon 2026](https://hedera.com)
 
 [![Hedera Testnet](https://img.shields.io/badge/Network-Hedera%20Testnet-00d0ff?style=flat-square)](https://hashscan.io/testnet)
-[![Smart Contract](https://img.shields.io/badge/Contract-Deployed-0bda54?style=flat-square)](https://hashscan.io/testnet)
+[![Smart Contract](https://img.shields.io/badge/Contract-Deployed-0bda54?style=flat-square)](https://hashscan.io/testnet/contract/0x3daa661eD66d580401EB2CDfD47f8826A574e2BF)
 [![OpenRouter](https://img.shields.io/badge/AI-OpenRouter-a855f7?style=flat-square)](https://openrouter.ai)
 [![License](https://img.shields.io/badge/License-MIT-slate?style=flat-square)](./LICENSE)
 
@@ -17,13 +17,15 @@ SynapseX is a permissionless marketplace where users post AI tasks with an HBAR 
 No middlemen. No manual payouts. No trust required.
 
 ```
-User posts task + locks HBAR
+User posts task + locks HBAR in escrow (PENDING_ESCROW)
        ↓
-2–3 AI models compete in parallel (via OpenRouter)
+MetaMask confirms → escrow locked on-chain (OPEN)
+       ↓
+2–3 AI models compete in parallel via OpenRouter (IN_PROGRESS)
        ↓
 Winner scored: 60% token efficiency + 40% latency
        ↓
-Smart contract releases 70% to winner, 30% platform fee
+Smart contract releases 70% to winner, 30% platform fee (COMPLETED)
 ```
 
 ---
@@ -36,16 +38,18 @@ Smart contract releases 70% to winner, 30% platform fee
 - [Smart Contract](#smart-contract)
 - [Competition Scoring](#competition-scoring)
 - [Dynamic Pricing](#dynamic-pricing)
+- [Task Lifecycle](#task-lifecycle)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Environment Variables](#environment-variables)
   - [Backend Setup](#backend-setup)
   - [Frontend Setup](#frontend-setup)
+  - [MetaMask Configuration](#metamask-configuration)
+  - [Database](#database)
 - [API Reference](#api-reference)
 - [Deployment](#deployment)
 - [Roadmap](#roadmap)
-- [Team](#team)
 - [License](#license)
 
 ---
@@ -61,11 +65,17 @@ Smart contract releases 70% to winner, 30% platform fee
 | User model selection — up to 3 per task | ✅ Done |
 | PLATFORM pool (SynapseX-curated models) | ✅ Done |
 | USER pool (community-registered OpenRouter models) | ✅ Done |
+| Dynamic floor pricing from OpenRouter + CoinGecko | ✅ Done |
+| Escrow-gated competition (funds locked before AI runs) | ✅ Done |
+| Abandoned task cleanup via cron (10 min timeout) | ✅ Done |
 | Earnings-based reputation system | ✅ Done |
 | Public leaderboard | ✅ Done |
+| User profile with network analytics view | ✅ Done |
+| In-app protocol documentation | ✅ Done |
 | Dark / Light theme | ✅ Done |
 | Rate limiting + Helmet.js security headers | ✅ Done |
-| Dynamic floor pricing from OpenRouter costs | 🔄 In Progress |
+| Auth-gated frontend navigation | ✅ Done |
+| Vercel SPA routing fix | ✅ Done |
 
 ---
 
@@ -83,8 +93,9 @@ Smart contract releases 70% to winner, 30% platform fee
 
 ### Backend
 - **Node.js + Express** — REST API
-- **Supabase (PostgreSQL)** — Users, agents, tasks, executions
+- **Supabase (PostgreSQL)** — Users, agents, tasks, task model entries
 - **JWT** — Authentication tokens after wallet verification
+- **node-cron** — Scheduled cleanup of abandoned escrow tasks
 - **express-rate-limit** — API rate limiting
 - **Helmet.js** — HTTP security headers
 
@@ -103,32 +114,33 @@ Smart contract releases 70% to winner, 30% platform fee
 ┌─────────────────────────────────────────────────────┐
 │                    FRONTEND (React)                  │
 │  MetaMask Auth → Task Arena → Model Selection        │
-│  Dashboard → Leaderboard → Profile → Agents          │
+│  Dashboard → Leaderboard → Profile → Agents → Docs   │
 └──────────────────┬──────────────────────────────────┘
                    │ REST API (JWT)
 ┌──────────────────▼──────────────────────────────────┐
 │                 BACKEND (Node.js)                    │
 │                                                      │
-│  Auth Service    Competition Engine    Agent Router  │
-│  (ECDSA verify)  (parallel model run)  (OpenRouter)  │
-│                                                      │
+│  Auth Service    Competition Engine    Pricing Svc   │
+│  (ECDSA verify)  (parallel model run)  (OpenRouter   │
+│                                         + CoinGecko) │
 │  ┌──────────────┐           ┌────────────────────┐  │
 │  │  Supabase DB │           │  ethers.js signer  │  │
 │  │  users       │           │  releasePayment()  │  │
 │  │  agents      │           └────────┬───────────┘  │
 │  │  tasks       │                    │               │
-│  │  executions  │                    │               │
+│  │  task_model_ │   node-cron        │               │
+│  │  entries     │  (10-min cleanup)  │               │
 │  └──────────────┘                    │               │
 └─────────────────────────────────────┼───────────────┘
                                        │
-┌──────────────────────────────────────▼───────────────┐
+┌─────────────────────────────────────▼────────────────┐
 │              HEDERA EVM (Testnet)                     │
-│                                                      │
-│  SynapseEscrow.sol                                   │
-│  ├── lockTask(taskId)  ← user locks HBAR             │
-│  ├── releasePayment()  ← backend pays winner         │
-│  └── cancelTask()      ← refund on failure           │
-└──────────────────────────────────────────────────────┘
+│                                                       │
+│  SynapseEscrow.sol                                    │
+│  ├── lockTask(taskId)   ← user locks HBAR             │
+│  ├── releasePayment()   ← backend pays winner         │
+│  └── cancelTask()       ← refund on failure           │
+└───────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -137,8 +149,9 @@ Smart contract releases 70% to winner, 30% platform fee
 
 **Contract:** `SynapseEscrow.sol`  
 **Address:** `0x3daa661eD66d580401EB2CDfD47f8826A574e2BF`  
-**Network:** Hedera Testnet  
-**Platform Wallet:** `0xefA269FD7b702943C26172BF70F65F76455aA270`
+**Network:** Hedera Testnet (chainId `296`)  
+**Platform Wallet:** `0xefA269FD7b702943C26172BF70F65F76455aA270`  
+**Explorer:** [View on HashScan](https://hashscan.io/testnet/contract/0x3daa661eD66d580401EB2CDfD47f8826A574e2BF)
 
 ### Key Functions
 
@@ -191,15 +204,40 @@ This rewards models that produce concise, fast answers rather than verbose ones.
 
 ## Dynamic Pricing
 
-> 🔄 In development
+When you select models for a task, SynapseX automatically calculates a minimum reward in real time:
 
-The platform will auto-calculate a minimum viable reward at task creation time by:
+```
+per model  = inputCostUSD + $0.50 markup
+total HBAR = Σ(per model) ÷ liveHBARprice
+```
 
-1. Querying OpenRouter's model cost API for selected models
-2. Estimating expected token usage based on prompt length
-3. Computing: `minReward = (costPerToken × avgTokens × numModels) / HBAR_USD_rate × 1.3`
+- **Input cost** fetched live from OpenRouter model catalog (5-min cache)
+- **HBAR/USD rate** fetched live from CoinGecko (1-min cache, fallback $0.07)
+- **$0.50 markup per model** covers infrastructure — free models cost $0.50, a $1.00 model costs $1.50
+- Reward input auto-fills at suggested minimum, clamped between `min` and `min × 10`
+- Hover the price badge in the task input bar to see a full per-model cost breakdown
 
-Users will see a suggested minimum and can set any amount above it.
+---
+
+## Task Lifecycle
+
+Competition only starts after funds are confirmed on-chain — never before:
+
+```
+PENDING_ESCROW → OPEN → IN_PROGRESS → COMPLETED
+      ↓                             ↘ FAILED
+  CANCELLED
+ (cron, 10 min)
+```
+
+| Status | Meaning |
+|---|---|
+| `PENDING_ESCROW` | Task created, awaiting MetaMask approval |
+| `OPEN` | Escrow confirmed on-chain — competition starts now |
+| `IN_PROGRESS` | Models running in parallel |
+| `COMPLETED` | Winner selected, payout released via smart contract |
+| `FAILED` | Competition error — escrow can be refunded |
+| `CANCELLED` | User abandoned before locking funds — no charge |
 
 ---
 
@@ -208,60 +246,42 @@ Users will see a suggested minimum and can set any amount above it.
 ```
 synapsex/
 ├── backend/
-│
 │   ├── modules/
 │   │   ├── auth/
-│   │   │   ├── auth.routes.js        
+│   │   │   ├── auth.routes.js
 │   │   │   ├── auth.controller.js
 │   │   │   └── auth.service.js
-│   │
 │   │   ├── tasks/
-│   │   │   ├── task.routes.js        
+│   │   │   ├── task.routes.js
 │   │   │   ├── task.controller.js
-│   │   │   └── task.service.js       
-│   │
+│   │   │   ├── task.service.js
+│   │   │   └── task.repository.js
 │   │   ├── agents/
 │   │   │   ├── agent.routes.js
 │   │   │   ├── agent.controller.js
-│   │   │   └── agent.service.js
-│   │
+│   │   │   ├── agent.service.js
+│   │   │   └── agent.repository.js
 │   │   ├── user/
 │   │   │   ├── user.routes.js
 │   │   │   └── user.controller.js
-│   │
-│   │   └── competition/
-│   │       └── competition.service.js
-│
+│   │   ├── competition/
+│   │   │   └── competition.engine.js
+│   │   └── pricing/
+│   │       ├── pricing.routes.js
+│   │       └── pricing.service.js
 │   ├── services/
 │   │   ├── ai/
-│   │   │   └── openrouter.service.js
-│   │
-│   │   ├── security/
-│   │   │   └── rateLimit.service.js
-│   │
-│   │   ├── agent.service.js
-│   │   └── hedera.service.js        
-│
+│   │   │   └── ai.router.js
+│   │   ├── escrow.service.js
+│   │   └── payment.service.js
 │   ├── middlewares/
 │   │   └── auth.middleware.js
-│
-│   ├── utils/
-│   │   └── jwt.js
-│
+│   ├── cron/
+│   │   └── cleanupPendingTasks.cron.js
 │   ├── constants/
 │   │   └── taskStatus.js
-│
 │   ├── lib/
-│   │   ├── supabase.js
-│   │   └── mock.supabase.js
-│
-│   ├── stats.routes.js
-│   ├── stats.controller.js
-│
-│   ├── wallet.js
-│   ├── sign.js
-│   ├── test.js
-│
+│   │   └── supabase.js
 │   ├── index.js
 │   ├── .env
 │   └── package.json
@@ -269,22 +289,23 @@ synapsex/
 └── frontend/
     ├── src/
     │   ├── components/
-    │   │   ├── NavLinks.jsx           # Nav data
-    │   │   
+    │   │   └── NavLinks.jsx
     │   ├── pages/
-    │   │   ├── Landing.jsx            # Public landing page
-    │   │   ├── MetaMaskAuth.jsx       # Wallet connect + auth
-    │   │   ├── Dashboard.jsx          # Stats, leaderboard
-    │   │   ├── TaskPage.jsx           # Chat arena + competition
-    │   │   ├── AgentsPage.jsx         # Register/manage agents
-    │   │   ├── Profile.jsx            # User profile + metrics
-    │   │   ├── UserLookup.jsx         # Search users
-    │   │   ├── Status.jsx             # System health checks
-    │   │   ├── Support.jsx            # User feedback form
-    │   │   └── Terms.jsx              # Terms of service
+    │   │   ├── Landing.jsx         # Public landing + auth-gated nav
+    │   │   ├── MetaMaskAuth.jsx    # Wallet connect + sign
+    │   │   ├── Dashboard.jsx       # Stats + leaderboard
+    │   │   ├── TaskPage.jsx        # Arena + pricing + escrow flow
+    │   │   ├── AgentsPage.jsx      # Register models via OpenRouter
+    │   │   ├── Profile.jsx         # Stats from users_with_stats view
+    │   │   ├── UserLookup.jsx      # Search users by wallet
+    │   │   ├── Docs.jsx            # Full protocol documentation
+    │   │   ├── Status.jsx          # System health
+    │   │   ├── Support.jsx         # Feedback form
+    │   │   └── Terms.jsx           # Terms of service
     │   ├── api/
-    │   │   └── axios.js               # Axios instance with base URL
-    │   └── App.jsx                    # Routes
+    │   │   └── axios.js
+    │   └── App.jsx
+    ├── vercel.json                 # SPA routing fix for Vercel
     ├── tailwind.config.js
     └── package.json
 ```
@@ -299,7 +320,7 @@ synapsex/
 - A [Supabase](https://supabase.com) project
 - An [OpenRouter](https://openrouter.ai) API key
 - MetaMask browser extension
-- Hedera Testnet HBAR (free from [faucet.hedera.com](https://faucet.hedera.com))
+- Hedera Testnet HBAR — free from [faucet.hedera.com](https://faucet.hedera.com)
 
 ### Environment Variables
 
@@ -308,23 +329,26 @@ synapsex/
 ```env
 PORT=3000
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_KEY=your_service_key
+SUPABASE_ANON_KEY=your_anon_key
 
 JWT_SECRET=your_jwt_secret_here
 
 OPENROUTER_API_KEY=sk-or-your-key-here
+API_KEY_SECRET=your_encryption_secret
 
 ESCROW_CONTRACT_ADDRESS=0x3daa661eD66d580401EB2CDfD47f8826A574e2BF
-PLATFORM_WALLET_ADDRESS=0xefA269FD7b702943C26172BF70F65F76455aA270
-PLATFORM_PRIVATE_KEY=your_platform_wallet_private_key
+PLATFORM_WALLET=your_hedera_wallet_id
 
-HEDERA_RPC_URL=https://testnet.hashio.io/api
+HEDERA_ACCOUNT_ID=0.0.xxxxxxx
+HEDERA_PRIVATE_KEY=0xyour_private_key
+
+CORS_ORIGIN=https://your-frontend.vercel.app
 ```
 
 **Frontend `.env`:**
 
 ```env
-VITE_API_BASE_URL=http://localhost:3000/api
+VITE_API_BASE_URL=http://localhost:3000
 VITE_ESCROW_CONTRACT_ADDRESS=0x3daa661eD66d580401EB2CDfD47f8826A574e2BF
 ```
 
@@ -333,10 +357,6 @@ VITE_ESCROW_CONTRACT_ADDRESS=0x3daa661eD66d580401EB2CDfD47f8826A574e2BF
 ```bash
 cd backend
 npm install
-
-# Apply database migrations in Supabase dashboard or via CLI
-# Tables required: users, agents, tasks, task_executions
-
 npm run dev
 # Server starts on http://localhost:3000
 ```
@@ -346,17 +366,13 @@ npm run dev
 ```bash
 cd frontend
 npm install
-
-# Ensure tailwind.config.js has:
-# darkMode: 'class'
-
 npm run dev
 # App starts on http://localhost:5173
 ```
 
 ### MetaMask Configuration
 
-Add Hedera Testnet to MetaMask manually or the app will prompt automatically:
+Add Hedera Testnet to MetaMask manually, or the app will prompt automatically on first use:
 
 | Field | Value |
 |---|---|
@@ -366,46 +382,73 @@ Add Hedera Testnet to MetaMask manually or the app will prompt automatically:
 | Currency Symbol | `HBAR` |
 | Block Explorer | `https://hashscan.io/testnet` |
 
+### Database
+
+Run in Supabase SQL Editor after creating your project:
+
+```sql
+-- Add task statuses
+ALTER TYPE task_status ADD VALUE IF NOT EXISTS 'PENDING_ESCROW';
+ALTER TYPE task_status ADD VALUE IF NOT EXISTS 'FAILED';
+ALTER TYPE task_status ADD VALUE IF NOT EXISTS 'CANCELLED';
+
+-- Set default to PENDING_ESCROW
+ALTER TABLE public.tasks
+  ALTER COLUMN status SET DEFAULT 'PENDING_ESCROW'::task_status;
+
+-- Add error column for failed/cancelled task logging
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS error text;
+
+-- User stats view (used by /users/me and Profile page)
+CREATE OR REPLACE VIEW public.users_with_stats AS
+SELECT
+  u.*,
+  COUNT(DISTINCT a.id)                                            AS agents_deployed,
+  COUNT(DISTINCT t.id)                                            AS tasks_posted,
+  COUNT(DISTINCT CASE WHEN t.status = 'COMPLETED' THEN t.id END) AS tasks_completed,
+  COALESCE(SUM(a.total_earned), 0)                               AS total_agent_earnings
+FROM public.users u
+LEFT JOIN public.agents a ON a.owner_user_id = u.id
+LEFT JOIN public.tasks  t ON t.creator_id    = u.id
+GROUP BY u.id;
+```
+
 ---
 
 ## API Reference
 
 ### Authentication
-
 ```
-POST /api/auth/nonce          → Get signing nonce for wallet
-POST /api/auth/verify         → Verify signature, receive JWT
+POST /auth/nonce            → Get signing nonce for wallet address
+POST /auth/verify           → Verify ECDSA signature, receive JWT
+GET  /auth/me               → Get current user (auth required)
 ```
 
 ### Tasks
-
 ```
-GET  /api/tasks/my            → List user's tasks (auth required)
-POST /api/tasks               → Create task + trigger competition
-GET  /api/tasks/:id           → Get task + results
-PATCH /api/tasks/:id/escrow   → Update escrow tx hash after lockTask()
+GET   /tasks/price          → Calculate dynamic reward for selected models
+GET   /tasks/my             → List current user's tasks (auth required)
+POST  /tasks                → Create task in PENDING_ESCROW state
+GET   /tasks/:id            → Get task + competition results
+PATCH /tasks/:id/escrow     → Confirm on-chain tx → triggers competition
 ```
 
 ### Agents
-
 ```
-GET  /api/agents/my           → List user's registered agents
-GET  /api/agents/available    → List available agents by pool type
-POST /api/agents/register     → Register new OpenRouter agent
+GET  /agents/my                       → User's registered agents
+GET  /agents/available?pool=PLATFORM  → Available models by pool
+POST /agents/register                 → Register new OpenRouter model
 ```
 
 ### Users
-
 ```
-GET  /api/users/me            → Get own profile + stats
-GET  /api/users/:id           → Look up another user
-GET  /api/users/leaderboard   → Top agents by reputation/earnings
+GET  /users/me               → Own profile + stats (users_with_stats view)
+GET  /users/:walletAddress   → Public profile lookup
 ```
 
-### Health
-
+### Stats
 ```
-GET  /api/                  → { status: "ok" } — used by Status page
+GET  /stats                  → Platform-wide stats (used by Status page)
 ```
 
 ---
@@ -415,28 +458,31 @@ GET  /api/                  → { status: "ok" } — used by Status page
 ### Frontend — Vercel
 
 ```bash
-cd frontend
-npm run build
-# Deploy /dist to Vercel
-# Set VITE_API_BASE_URL and VITE_ESCROW_CONTRACT_ADDRESS in Vercel env vars
+cd frontend && npm run build
+# Deploy to Vercel
+# Set env vars: VITE_API_BASE_URL, VITE_ESCROW_CONTRACT_ADDRESS
+```
+
+`vercel.json` at the frontend root handles SPA routing:
+```json
+{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
 ```
 
 ### Backend — Render
 
-```bash
-# Connect GitHub repo to Render
-# Set root directory: backend
-# Build command: npm install
-# Start command: node src/index.js
-# Add all env vars in Render dashboard
-```
+| Field | Value |
+|---|---|
+| Root Directory | `backend` |
+| Build Command | `npm install` |
+| Start Command | `node index.js` |
+
+Add all backend env vars in the Render dashboard.
 
 ### Smart Contract
 
-The contract is already deployed on Hedera Testnet. To redeploy:
+Already deployed on Hedera Testnet. To redeploy:
 
 ```bash
-# Using Hardhat with Hedera EVM config
 npx hardhat compile
 npx hardhat deploy --network hederaTestnet
 ```
@@ -445,20 +491,13 @@ npx hardhat deploy --network hederaTestnet
 
 ## Roadmap
 
-- [ ] Dynamic floor pricing from OpenRouter cost API
 - [ ] Hedera Consensus Service (HCS) execution audit logs
 - [ ] Hedera Token Service (HTS) for streaming micropayments
+- [ ] WebSocket live competition feed
 - [ ] Mainnet deployment
 - [ ] Agent reputation NFTs via HTS
 - [ ] Multi-task batching
-- [ ] WebSocket live competition feed
 - [ ] Mobile app
-
----
-
-## Team
-
-Built for the **Hedera Hello Future Apex Hackathon 2026**.
 
 ---
 
