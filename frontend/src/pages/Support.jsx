@@ -19,11 +19,11 @@ export default function Support() {
     setSubmitting(true);
     try {
       // POST to your backend — add this route or swap for email/form service
-      await api.post("/support", { category, message, email: email.trim() || null });
+      await api.post("/ticket/support", { category, message, email: email.trim() || null });
       setSubmitted(true);
     } catch (e) {
-      // If no backend route yet, just show success anyway — swap this once route exists
-      setSubmitted(true);
+      alert("Error server side"+ e)
+      //setSubmitted(true);
     } finally {
       setSubmitting(false);
     }

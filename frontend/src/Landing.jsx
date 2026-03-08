@@ -12,17 +12,15 @@ const Landing = () => {
     navigate('/docs')
   }
 
-  const handleLaunchApp = () => {
-    navigate('/dashboard')
-  }
+  // Redirects to route only if JWT token exists, otherwise → /wallet-connect
+  const requireAuth = (route) => {
+    const token = localStorage.getItem('token');
+    navigate(token ? route : '/wallet-connect');
+  };
 
-  const handleDeployAgent = () => {
-    navigate('/agents')
-  }
-
-  const handleTaskCreate = () =>{
-    navigate('/chat')
-  }
+  const handleLaunchApp   = () => requireAuth('/dashboard');
+  const handleDeployAgent = () => requireAuth('/agents');
+  const handleTaskCreate  = () => requireAuth('/chat');
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-hidden bg-[#0a0a0a] text-slate-100 font-sans selection:bg-cyan-400/30">
@@ -84,7 +82,7 @@ const Landing = () => {
               <button onClick={handleDeployAgent} className="flex min-w-[180px] items-center justify-center gap-2 rounded-lg bg-cyan-400 px-8 py-4 text-sm font-bold text-[#0a0a0a] hover:brightness-110 transition-all shadow-[0_0_15px_rgba(0,208,255,0.3)] cursor-pointer">
                 Deploy Agent
               </button>
-              <button onClick={handleTaskCreate}className="flex min-w-[180px] items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-8 py-4 text-sm font-bold text-slate-100 hover:bg-white/10 transition-all cursor-pointer">
+              <button onClick={handleTaskCreate} className="flex min-w-[180px] items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-8 py-4 text-sm font-bold text-slate-100 hover:bg-white/10 transition-all cursor-pointer">
                 Post Task
               </button>
             </div>
@@ -309,7 +307,7 @@ const Landing = () => {
               <button onClick={handleLaunchApp} className="flex items-center gap-2 rounded-lg bg-cyan-400 px-10 py-4 text-sm font-bold text-[#0a0a0a] shadow-[0_0_15px_rgba(0,208,255,0.3)] hover:brightness-110 transition-all cursor-pointer">
                 Launch App
               </button>
-              <button onClick={handleAbout}className="flex items-center gap-2 rounded-lg border border-white/20 px-10 py-4 text-sm font-bold text-slate-100 hover:bg-white/5 transition-all cursor-pointer">
+              <button onClick={handleAbout} className="flex items-center gap-2 rounded-lg border border-white/20 px-10 py-4 text-sm font-bold text-slate-100 hover:bg-white/5 transition-all cursor-pointer">
                 About
               </button>
             </div>
@@ -328,24 +326,33 @@ const Landing = () => {
             <h2 className="text-lg font-black tracking-tighter text-slate-100 uppercase">SynapseX</h2>
           </div>
 
-          
-
           <div className="flex gap-8 text-sm text-slate-500">
-  {[
-    { label: 'Twitter', href: 'https://x.com/mayurk_cmd' },
-    { label: 'Github', href: 'https://github.com/MayurK-cmd/SynapseX' },
-  ].map((link) => (
-    <a
-      key={link.label}
-      href={link.href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="hover:text-cyan-400 transition-colors"
-    >
-      {link.label}
-    </a>
-  ))}
-</div>
+            {[
+              { label: 'Status',  internal: '/status' },
+              { label: 'Support', internal: '/support' },
+              { label: 'Github',  href: 'https://github.com/MayurK-cmd/SynapseX' },
+            ].map((link) =>
+              link.href ? (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-cyan-400 transition-colors"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <button
+                  key={link.label}
+                  onClick={() => navigate(link.internal)}
+                  className="hover:text-cyan-400 transition-colors cursor-pointer"
+                >
+                  {link.label}
+                </button>
+              )
+            )}
+          </div>
 
           <p className="text-sm text-slate-600">© 2026 SynapseX. All rights reserved.</p>
         </div>

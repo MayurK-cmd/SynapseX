@@ -1,6 +1,8 @@
 export const TaskStatus = {
+    PENDING_ESCROW: "PENDING_ESCROW",
     OPEN   : "OPEN",
     IN_PROGRESS : "IN_PROGRESS",
     COMPLETED : "COMPLETED",
+    FAILED : "FAILED",
     CANCELLED : "CANCELLED"
 }

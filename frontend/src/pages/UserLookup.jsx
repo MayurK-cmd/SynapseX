@@ -128,8 +128,7 @@ export default function UserLookup() {
                   </div>
                   <div className="flex gap-4 items-center">
                     <div className="flex flex-col items-end">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Rank</span>
-                      <span className="text-lg font-black text-cyan-400">ELITE CLASS</span>
+                      
                     </div>
                     <div className="w-12 h-12 bg-cyan-400/20 rounded-xl flex items-center justify-center border border-cyan-400/40">
                       <svg className="w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -158,35 +157,26 @@ export default function UserLookup() {
                   <div className="group">
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 group-hover:text-cyan-400 transition-colors">Earnings</p>
                     <div className="flex items-baseline gap-1">
-                      <p className="text-4xl md:text-5xl font-black text-emerald-400">{userData.earnings}</p>
+                      <p className="text-4xl md:text-5xl font-black text-emerald-400">{userData.total_earned}</p>
                     </div>
                     <p className="text-[10px] text-slate-500 font-mono mt-2">HBAR EQUIVALENT</p>
                   </div>
 
                   <div className="group">
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 group-hover:text-cyan-400 transition-colors">Tasks Posted</p>
-                    <p className="text-4xl md:text-5xl font-black text-white">{userData.tasksPosted}</p>
+                    <p className="text-4xl md:text-5xl font-black text-white">   {userData.tasksPosted ?? 0}</p>
                     <p className="text-[10px] text-slate-500 font-mono mt-2">NETWORK CONTRACTS</p>
                   </div>
+                  
 
                   <div className="group">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 group-hover:text-cyan-400 transition-colors">Completed</p>
-                    <p className="text-4xl md:text-5xl font-black text-white">{userData.tasksCompleted?.toLocaleString()}</p>
-                    <p className="text-[10px] text-slate-500 font-mono mt-2">VERIFIED ACTIONS</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 group-hover:text-cyan-400 transition-colors">Agents Deployed</p>
+                    <p className="text-4xl md:text-5xl font-black text-white">{userData.agents_deployed ?? 0}</p>
+                    <p className="text-[10px] text-slate-500 font-mono mt-2">AGENTS</p>
                   </div>
                 </div>
 
-                {/* Tags */}
-                <div className="mt-16 pt-8 border-t border-white/10 flex flex-wrap gap-4">
-                  {['Node Validator', 'Early Adopter', 'Gov Council'].map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-4 py-2 bg-cyan-400/10 border border-cyan-400/20 rounded-full text-[10px] font-bold text-cyan-400 tracking-widest uppercase"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                
 
                 {/* Decorative circles */}
                 <div className="absolute bottom-0 right-0 opacity-10 pointer-events-none">
@@ -202,69 +192,9 @@ export default function UserLookup() {
             {/* Activity cards row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-              {/* Node Location */}
-              <div className="bg-slate-900/40 backdrop-blur-xl border border-cyan-400/10 rounded-3xl p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Node Location</h4>
-                  <span className="text-[10px] font-mono text-cyan-400">LAT: 40.7128 N</span>
-                </div>
-                <div className="h-48 rounded-2xl bg-slate-800 relative overflow-hidden flex items-center justify-center">
-                  {/* Stylized map placeholder */}
-                  <svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 400 200" fill="none">
-                    <path d="M0 100 Q100 60 200 100 T400 100" stroke="#00d0ff" strokeWidth="0.5" />
-                    <path d="M0 80 Q100 40 200 80 T400 80" stroke="#00d0ff" strokeWidth="0.5" />
-                    <path d="M0 120 Q100 80 200 120 T400 120" stroke="#00d0ff" strokeWidth="0.5" />
-                    <line x1="0" y1="0" x2="400" y2="0" stroke="#00d0ff" strokeWidth="0.3" />
-                    <line x1="0" y1="50" x2="400" y2="50" stroke="#00d0ff" strokeWidth="0.3" />
-                    <line x1="0" y1="100" x2="400" y2="100" stroke="#00d0ff" strokeWidth="0.3" />
-                    <line x1="0" y1="150" x2="400" y2="150" stroke="#00d0ff" strokeWidth="0.3" />
-                    <line x1="0" y1="200" x2="400" y2="200" stroke="#00d0ff" strokeWidth="0.3" />
-                    <line x1="100" y1="0" x2="100" y2="200" stroke="#00d0ff" strokeWidth="0.3" />
-                    <line x1="200" y1="0" x2="200" y2="200" stroke="#00d0ff" strokeWidth="0.3" />
-                    <line x1="300" y1="0" x2="300" y2="200" stroke="#00d0ff" strokeWidth="0.3" />
-                  </svg>
-                  <div
-                    className="absolute inset-0"
-                    style={{ background: 'linear-gradient(to top, #0f1f23, transparent)' }}
-                  />
-                  {/* Ping marker */}
-                  <div className="relative">
-                    <div className="w-4 h-4 bg-cyan-400 rounded-full animate-ping absolute -inset-0" />
-                    <div className="w-4 h-4 bg-cyan-400 rounded-full relative border-4 border-[#0f1f23]" />
-                  </div>
-                </div>
-              </div>
+              
 
-              {/* Asset Distribution */}
-              <div className="bg-slate-900/40 backdrop-blur-xl border border-cyan-400/10 rounded-3xl p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Asset Distribution</h4>
-                  <span className="text-[10px] font-mono text-cyan-400">TOTAL: $1.2M</span>
-                </div>
-                <div className="space-y-4">
-                  {[
-                    { label: 'Native Stake', pct: 75, opacity: 'bg-cyan-400' },
-                    { label: 'Liquidity Pools', pct: 15, opacity: 'bg-cyan-400/40' },
-                    { label: 'NFT Assets', pct: 10, opacity: 'bg-cyan-400/20' },
-                  ].map((item) => (
-                    <div key={item.label}>
-                      <div className="flex justify-between text-[10px] font-bold mb-1 uppercase text-slate-500">
-                        <span>{item.label}</span>
-                        <span>{item.pct}%</span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${item.opacity} rounded-full`}
-                          style={{
-                            width: `${item.pct}%`,
-                            ...(item.pct === 75 ? { boxShadow: '0 0 10px rgba(0,208,255,0.4)' } : {}),
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              
             </div>
           </div>
         )}
@@ -276,7 +206,7 @@ export default function UserLookup() {
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">SynapseX Testnet </p>
           <div className="flex gap-8">
             {[
-               { label: 'Hedera explorer', href: '' },
+               { label: 'Hedera explorer', href: 'https://hashscan.io/testnet/home' },
                { label: 'Docs', href: '/docs' },
                { label: 'Support', href: '/support' },
             ].map((link) => (

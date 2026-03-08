@@ -1,11 +1,13 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import "./cron/cleanupPendingTasks.cron.js"
 import authRoutes from "./modules/auth/auth.routes.js";
 import userRoutes from "./modules/user/user.routes.js";
 import taskRoutes from "./modules/tasks/task.routes.js";
 import agentRoutes from "./modules/agents/agent.routes.js";
 import statsRoutes from "./utils/stats.routes.js";
+import supportRoutes from "./support/support.routes.js";
 
 dotenv.config();
 const app = express();
@@ -27,7 +29,9 @@ app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/tasks", taskRoutes);
 app.use("/agents",agentRoutes);
-app.use("/stats",statsRoutes)
+app.use("/stats",statsRoutes);
+app.use("/ticket",supportRoutes)
+
 
 
 const PORT = process.env.PORT || 5000;
