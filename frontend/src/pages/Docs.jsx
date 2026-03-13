@@ -121,7 +121,7 @@ export default function Docs() {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,208,255,0.8)]" />
-            <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Protocol v2.4.0</span>
+            <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Hedera Testnet</span>
           </div>
         </div>
       </header>
@@ -150,11 +150,21 @@ export default function Docs() {
           <div className="mt-10 px-3">
             <div className="h-px bg-white/5 mb-6" />
             <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest mb-3">Quick Links</p>
-            {['Explorer', 'GitHub', 'Support'].map((l) => (
-              <a key={l} href="#" className="block text-xs text-slate-600 hover:text-cyan-400 transition-colors py-1 font-medium">
-                {l} →
-              </a>
-            ))}
+           {[
+  { label: 'Explorer', href: 'https://hashscan.io/testnet/home' },
+  { label: 'GitHub', href: 'https://github.com/MayurK-cmd/SynapseX' },
+  { label: 'Support', href: '/support' },
+].map(({ label, href }) => (
+  <a
+    key={label}
+    href={href}
+    target={href.startsWith('http') ? '_blank' : undefined}
+    rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
+    className="block text-xs text-slate-600 hover:text-cyan-400 transition-colors py-1 font-medium"
+  >
+    {label} →
+  </a>
+))}
           </div>
         </aside>
 

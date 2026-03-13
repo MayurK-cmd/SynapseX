@@ -8,7 +8,6 @@ const ESCROW_ABI = [
   "function lockTask(bytes32 taskId) external payable",
 ];
 
-
 const getMetaMaskProvider = () => {
   if (!window.ethereum) throw new Error("MetaMask not installed");
   if (window.ethereum.providers) {
@@ -46,59 +45,210 @@ const lockTaskOnChain = async (taskId, rewardHbar) => {
   return tx.hash;
 };
 
-// ─── Pricing Tooltip ──────────────────────────────────────────────────────────
-function PricingTooltip({ pricing }) {
+// ─── HBAR Reward Popup ────────────────────────────────────────────────────────
+function HbarRewardPopup({ pricing, loadingPrice, reward, onConfirm, onClose }) {
+  const suggestedMin = pricing ? pricing.totalHBAR : null;
+  const suggestedMax = pricing ? parseFloat((pricing.totalHBAR * 10).toFixed(4)) : null;
+
+  const [localReward, setLocalReward] = useState(reward || "");
+
+  useEffect(() => {
+    if (pricing && !localReward) {
+      setLocalReward(String(pricing.totalHBAR));
+    }
+  }, [pricing]);
+
+  const handleChange = (val) => {
+    if (!pricing) { setLocalReward(val); return; }
+    const num = parseFloat(val) || 0;
+    const clamped = Math.min(Math.max(num, suggestedMin), suggestedMax);
+    setLocalReward(parseFloat(clamped.toFixed(4)));
+  };
+
+  const percentage = pricing
+    ? Math.round(((parseFloat(localReward) - suggestedMin) / (suggestedMax - suggestedMin)) * 100)
+    : 0;
+
+  const presets = pricing
+    ? [
+        { label: 'Min', value: suggestedMin },
+        { label: '2×', value: parseFloat((suggestedMin * 2).toFixed(4)) },
+        { label: '5×', value: parseFloat((suggestedMin * 5).toFixed(4)) },
+        { label: 'Max', value: suggestedMax },
+      ]
+    : [];
+
   return (
-    <div className="absolute bottom-full left-0 mb-3 z-50 w-64 pointer-events-none">
+    <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+
       <div
-        className="rounded-xl p-4 text-left shadow-2xl"
-        style={{ background: '#0f1f23', border: '1px solid rgba(0,208,255,0.3)' }}
+        className="relative w-full max-w-3xl rounded-t-3xl overflow-hidden flex flex-col"
+        style={{
+          height: '55vh',
+          background: 'rgba(10,20,25,0.98)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(0,208,255,0.2)',
+          borderBottom: 'none',
+        }}
+        onClick={e => e.stopPropagation()}
       >
-        <p className="text-[9px] font-black text-cyan-400 uppercase tracking-widest mb-3">Price Breakdown</p>
-        <div className="space-y-2.5">
-          {pricing.breakdown.map((m) => (
-            <div key={m.modelId} className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold text-slate-200 truncate">{m.modelName}</p>
-                <p className="text-[9px] text-slate-500">
-                  {m.isFree ? "Free model" : `$${m.inputCostUSD.toFixed(4)} cost`} + $0.50 markup
-                </p>
-              </div>
-              <p className="text-[10px] font-black text-cyan-400 flex-shrink-0">{m.totalForModelHBAR} HBAR</p>
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-white/20" />
+        </div>
+
+        {/* Header */}
+        <div className="px-8 pt-3 pb-4 shrink-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-black text-slate-100">Set Bounty Reward</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Lock HBAR in escrow — winner claims it on-chain</p>
             </div>
-          ))}
-        </div>
-        <div className="mt-3 pt-3 border-t border-white/5 flex justify-between items-center">
-          <div>
-            <p className="text-[9px] text-slate-500">HBAR price</p>
-            <p className="text-[10px] font-mono text-slate-400">${pricing.hbarPriceUSD}/HBAR</p>
-          </div>
-          <div className="text-right">
-            <p className="text-[9px] text-slate-500">Total USD</p>
-            <p className="text-[10px] font-black text-slate-200">${pricing.totalUSD.toFixed(4)}</p>
+            <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
-        <p className="text-[8px] text-slate-600 mt-2">~{pricing.estimatedTokensPerModel} tokens estimated per model</p>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-8 pb-4 flex flex-col gap-6">
+
+          {loadingPrice ? (
+            <div className="flex flex-col items-center justify-center flex-1 gap-3">
+              <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Fetching live pricing...</p>
+            </div>
+          ) : (
+            <>
+              {/* Big number display */}
+              <div className="flex flex-col items-center justify-center py-4 gap-1">
+                <div className="flex items-end gap-3">
+                  <input
+                    type="number"
+                    value={localReward}
+                    onChange={e => handleChange(e.target.value)}
+                    min={suggestedMin ?? 0}
+                    max={suggestedMax ?? undefined}
+                    step="0.01"
+                    placeholder="0"
+                    className="text-5xl font-black text-cyan-400 bg-transparent outline-none border-none text-center w-48 placeholder:text-slate-700"
+                    style={{ fontVariantNumeric: 'tabular-nums' }}
+                  />
+                  <span className="text-xl font-black text-slate-500 mb-2">HBAR</span>
+                </div>
+                {pricing && (
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    ≈ ${(parseFloat(localReward || 0) * pricing.hbarPriceUSD).toFixed(4)} USD · @${pricing.hbarPriceUSD}/HBAR
+                  </p>
+                )}
+              </div>
+
+              {/* Slider */}
+              {pricing && (
+                <div className="space-y-2">
+                  <input
+                    type="range"
+                    min={suggestedMin}
+                    max={suggestedMax}
+                    step="0.01"
+                    value={parseFloat(localReward) || suggestedMin}
+                    onChange={e => setLocalReward(parseFloat(e.target.value))}
+                    className="w-full accent-cyan-400 cursor-pointer"
+                    style={{ accentColor: '#00d0ff' }}
+                  />
+                  <div className="flex justify-between text-[9px] font-bold text-slate-600 uppercase tracking-widest">
+                    <span>{suggestedMin} min</span>
+                    <span className="text-cyan-400/60">{percentage}%</span>
+                    <span>{suggestedMax} max</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Preset pills */}
+              {presets.length > 0 && (
+                <div className="flex gap-2">
+                  {presets.map(p => (
+                    <button
+                      key={p.label}
+                      onClick={() => setLocalReward(String(p.value))}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer ${
+                        parseFloat(localReward) === p.value
+                          ? 'bg-cyan-400 text-black shadow-[0_0_20px_rgba(0,208,255,0.35)]'
+                          : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-white/10'
+                      }`}
+                    >
+                      {p.label}
+                      <span className="block text-[9px] mt-0.5 font-mono opacity-60">{p.value}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Price breakdown */}
+              {pricing && pricing.breakdown && (
+                <div
+                  className="rounded-xl p-4 space-y-3"
+                  style={{ background: '#0f1f23', border: '1px solid rgba(0,208,255,0.15)' }}
+                >
+                  <p className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Cost Breakdown</p>
+                  {pricing.breakdown.map((m) => (
+                    <div key={m.modelId} className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-slate-200 truncate">{m.modelName}</p>
+                        <p className="text-[9px] text-slate-500">
+                          {m.isFree ? "Free model" : `$${m.inputCostUSD.toFixed(4)} cost`} + $0.50 markup
+                        </p>
+                      </div>
+                      <p className="text-[11px] font-black text-cyan-400 flex-shrink-0">{m.totalForModelHBAR} HBAR</p>
+                    </div>
+                  ))}
+                  <div className="pt-3 border-t border-white/5 flex justify-between items-center">
+                    <p className="text-[9px] text-slate-500">~{pricing.estimatedTokensPerModel} tokens est. per model</p>
+                    <p className="text-[10px] font-black text-slate-200">${pricing.totalUSD.toFixed(4)} total USD</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer CTA */}
+        <div className="px-8 py-4 shrink-0 border-t border-white/5 flex gap-3">
+          <button onClick={onClose} className="py-3 px-6 rounded-xl border border-white/10 text-xs font-black text-slate-400 hover:bg-white/5 uppercase tracking-widest transition-all cursor-pointer">
+            Cancel
+          </button>
+          <button
+            onClick={() => localReward && onConfirm(localReward)}
+            disabled={!localReward || parseFloat(localReward) <= 0}
+            className="flex-1 py-3 rounded-xl bg-cyan-400 text-black text-xs font-black uppercase tracking-widest hover:brightness-110 disabled:opacity-30 transition-all shadow-[0_0_20px_rgba(0,208,255,0.3)] cursor-pointer disabled:cursor-not-allowed"
+          >
+            {localReward && parseFloat(localReward) > 0
+              ? `Lock ${parseFloat(localReward).toFixed(4)} HBAR in Escrow →`
+              : 'Enter an amount'}
+          </button>
+        </div>
       </div>
-      <div
-        className="w-3 h-3 rotate-45 ml-4 -mt-1.5"
-        style={{ background: '#0f1f23', borderRight: '1px solid rgba(0,208,255,0.3)', borderBottom: '1px solid rgba(0,208,255,0.3)' }}
-      />
     </div>
   );
 }
 
-// ─── Model Selection Popup ────────────────────────────────────────────────────
+// ─── Combined Pool + Model Selection Popup (half-screen slide-up) ─────────────
 function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
   const [models, setModels] = useState([]);
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activePool, setActivePool] = useState(poolType);
 
   useEffect(() => {
+    setSelected([]);
+    setLoading(true);
     const fetchModels = async () => {
       try {
         const res = await fetch(
-          `${API}/agents/available?pool=${poolType}`,
+          `${API}/agents/available?pool=${activePool}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         const data = await res.json();
@@ -110,7 +260,7 @@ function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
       }
     };
     fetchModels();
-  }, [poolType, token, API]);
+  }, [activePool, token, API]);
 
   const toggle = (id) => {
     setSelected(prev =>
@@ -121,41 +271,71 @@ function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+
       <div
-        className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
-        style={{ background: 'rgba(15,31,35,0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(0,208,255,0.2)' }}
+        className="relative w-full max-w-3xl rounded-t-3xl overflow-hidden flex flex-col"
+        style={{
+          height: '55vh',
+          background: 'rgba(10,20,25,0.98)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(0,208,255,0.2)',
+          borderBottom: 'none',
+        }}
+        onClick={e => e.stopPropagation()}
       >
-        <div className="px-8 pt-8 pb-4">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-black text-cyan-400 uppercase tracking-[.3em]">{poolType} Pool</p>
-            <button onClick={onClose} className="text-slate-500 hover:text-cyan-400 transition-colors cursor-pointer">
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-white/20" />
+        </div>
+
+        <div className="px-8 pt-3 pb-4 shrink-0">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-100">Choose Competitors</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Select up to 3 models to compete for the bounty</p>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-          <h2 className="text-xl font-black text-slate-100">Choose Your Competitors</h2>
-          <p className="text-xs text-slate-400 mt-1">Select up to 3 models — they will compete for the bounty</p>
-        </div>
 
-        <div className="px-8 pb-3">
           <div className="flex gap-2">
-            {[0, 1, 2].map(i => (
-              <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${i < selected.length ? 'bg-cyan-400' : 'bg-white/10'}`} />
+            {['PLATFORM', 'USER'].map(pool => (
+              <button
+                key={pool}
+                onClick={() => setActivePool(pool)}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer ${
+                  activePool === pool
+                    ? 'bg-cyan-400 text-black shadow-[0_0_20px_rgba(0,208,255,0.35)]'
+                    : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-white/10'
+                }`}
+              >
+                {pool === 'PLATFORM' ? '⚡ Platform' : '👤 User'} Pool
+              </button>
             ))}
           </div>
-          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1.5">{selected.length}/3 selected</p>
+
+          <div className="flex items-center gap-3 mt-3">
+            <div className="flex gap-1.5 flex-1">
+              {[0, 1, 2].map(i => (
+                <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i < selected.length ? 'bg-cyan-400' : 'bg-white/10'}`} />
+              ))}
+            </div>
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest shrink-0">{selected.length}/3 selected</span>
+          </div>
         </div>
 
-        <div className="px-8 pb-4 max-h-72 overflow-y-auto space-y-2">
+        <div className="flex-1 overflow-y-auto px-8 pb-4 space-y-2">
           {loading ? (
             <div className="flex justify-center py-10">
               <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : models.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-sm font-bold text-slate-500">No models available</p>
+              <p className="text-sm font-bold text-slate-500">No models available in this pool</p>
             </div>
           ) : models.map(model => {
             const isSelected = selected.includes(model.id);
@@ -165,9 +345,11 @@ function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
                 key={model.id}
                 onClick={() => !isDisabled && toggle(model.id)}
                 className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
-                  isSelected ? 'border-cyan-400/50 bg-cyan-400/10'
-                  : isDisabled ? 'border-white/5 bg-white/5 opacity-40 cursor-not-allowed'
-                  : 'border-white/5 hover:border-cyan-400/30 hover:bg-white/5'
+                  isSelected
+                    ? 'border-cyan-400/50 bg-cyan-400/10'
+                    : isDisabled
+                    ? 'border-white/5 bg-white/5 opacity-40 cursor-not-allowed'
+                    : 'border-white/5 hover:border-cyan-400/30 hover:bg-white/5'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -194,16 +376,16 @@ function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
           })}
         </div>
 
-        <div className="px-8 pb-8 pt-2 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-3 rounded-xl border border-white/10 text-xs font-black text-slate-400 hover:bg-white/5 uppercase tracking-widest transition-all cursor-pointer">
+        <div className="px-8 py-4 shrink-0 border-t border-white/5 flex gap-3">
+          <button onClick={onClose} className="py-3 px-6 rounded-xl border border-white/10 text-xs font-black text-slate-400 hover:bg-white/5 uppercase tracking-widest transition-all cursor-pointer">
             Cancel
           </button>
           <button
-            onClick={() => selected.length > 0 && onConfirm(selected)}
+            onClick={() => selected.length > 0 && onConfirm(selected, activePool)}
             disabled={selected.length === 0}
-            className="flex-grow py-3 px-8 rounded-xl bg-cyan-400 text-[#000000] text-xs font-black uppercase tracking-widest hover:brightness-110 disabled:opacity-30 transition-all shadow-[0_0_20px_rgba(0,208,255,0.3)] cursor-pointer disabled:cursor-not-allowed"
+            className="flex-1 py-3 rounded-xl bg-cyan-400 text-black text-xs font-black uppercase tracking-widest hover:brightness-110 disabled:opacity-30 transition-all shadow-[0_0_20px_rgba(0,208,255,0.3)] cursor-pointer disabled:cursor-not-allowed"
           >
-            Confirm {selected.length > 0 ? `(${selected.length})` : ''}
+            {selected.length > 0 ? `Confirm ${selected.length} Model${selected.length > 1 ? 's' : ''} →` : 'Select at least 1'}
           </button>
         </div>
       </div>
@@ -221,20 +403,17 @@ export default function ChatLayout() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [isLoadingTask, setIsLoadingTask] = useState(false);
   const [prompt, setPrompt] = useState("");
-  const [type, setType] = useState("TEXT");
   const [reward, setReward] = useState("");
   const [modelPoolType, setModelPoolType] = useState("PLATFORM");
   const [lockingFunds, setLockingFunds] = useState(false);
   const [lockError, setLockError] = useState("");
   const [showModelPopup, setShowModelPopup] = useState(false);
+  const [showHbarPopup, setShowHbarPopup] = useState(false);
   const [selectedModelIds, setSelectedModelIds] = useState([]);
-  
-  
 
   // ── Pricing ──
   const [pricing, setPricing] = useState(null);
   const [loadingPrice, setLoadingPrice] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
   const pricingDebounce = useRef(null);
 
   const suggestedMin = pricing ? pricing.totalHBAR : null;
@@ -255,7 +434,7 @@ export default function ChatLayout() {
       if (!res.ok) throw new Error("Pricing fetch failed");
       const data = await res.json();
       setPricing(data);
-      setReward(data.totalHBAR); // auto-fill suggested minimum
+      setReward(data.totalHBAR);
     } catch (err) {
       console.warn("[pricing]", err.message);
       setPricing(null);
@@ -292,19 +471,15 @@ export default function ChatLayout() {
     setSelectedModelIds([]); setPricing(null); setReward("");
   };
 
-  const handlePoolChange = (newPool) => {
-    setModelPoolType(newPool); setSelectedModelIds([]);
-    setPricing(null); setReward(""); setShowModelPopup(true);
+  const handleModelsConfirmed = (ids, pool) => {
+    setSelectedModelIds(ids);
+    setModelPoolType(pool);
+    setShowModelPopup(false);
   };
 
-  const handleModelsConfirmed = (ids) => { setSelectedModelIds(ids); setShowModelPopup(false); };
-
-  // Clamp value between suggested min and 10× max
-  const handleRewardChange = (val) => {
-    if (!pricing) { setReward(val); return; }
-    const num = parseFloat(val) || 0;
-    const clamped = Math.min(Math.max(num, suggestedMin), suggestedMax);
-    setReward(parseFloat(clamped.toFixed(4)));
+  const handleRewardConfirmed = (val) => {
+    setReward(val);
+    setShowHbarPopup(false);
   };
 
   const sendPrompt = async () => {
@@ -318,7 +493,14 @@ export default function ChatLayout() {
       const res = await fetch(`${API}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ description: prompt, reward, type, model_pool_type: modelPoolType, reward_amount: reward, selected_agent_ids: selectedModelIds }),
+        body: JSON.stringify({
+          description: prompt,
+          reward,
+          type: "TEXT",
+          model_pool_type: modelPoolType,
+          reward_amount: reward,
+          selected_agent_ids: selectedModelIds,
+        }),
       });
       newTask = await res.json();
       if (!res.ok) throw new Error(newTask.message || "Task creation failed");
@@ -364,13 +546,27 @@ export default function ChatLayout() {
   const isPending = selectedTask && (selectedTask.status === "OPEN" || selectedTask.status === "IN_PROGRESS");
   const isExecuting = isPending || lockingFunds;
 
- 
-
   return (
     <div className="flex h-screen bg-[#000000] font-sans text-slate-100 overflow-hidden">
 
       {showModelPopup && (
-        <ModelSelectionPopup poolType={modelPoolType} token={token} API={API} onConfirm={handleModelsConfirmed} onClose={() => setShowModelPopup(false)} />
+        <ModelSelectionPopup
+          poolType={modelPoolType}
+          token={token}
+          API={API}
+          onConfirm={handleModelsConfirmed}
+          onClose={() => setShowModelPopup(false)}
+        />
+      )}
+
+      {showHbarPopup && (
+        <HbarRewardPopup
+          pricing={pricing}
+          loadingPrice={loadingPrice}
+          reward={reward}
+          onConfirm={handleRewardConfirmed}
+          onClose={() => setShowHbarPopup(false)}
+        />
       )}
 
       {/* ── Sidebar ─────────────────────────────────────────────────── */}
@@ -637,72 +833,43 @@ export default function ChatLayout() {
             {/* ── Bottom toolbar ── */}
             <div className="flex items-center justify-between px-2 flex-wrap gap-3">
               <div className="flex gap-2 flex-wrap items-center">
-                <select value={type} onChange={(e) => setType(e.target.value)}
-                  className="bg-[#0f1f23] border border-cyan-400/20 text-cyan-400 text-[10px] font-black rounded-full px-3 py-1.5 outline-none cursor-pointer hover:border-cyan-400/50 transition-colors">
-                  <option value="TEXT">TEXT</option>
-                  <option value="IMAGE">IMAGE</option>
-                </select>
 
-                <select value={modelPoolType} onChange={(e) => handlePoolChange(e.target.value)}
-                  className="bg-[#0f1f23] border border-cyan-400/20 text-cyan-400 text-[10px] font-black rounded-full px-3 py-1.5 outline-none cursor-pointer hover:border-cyan-400/50 transition-colors">
-                  <option value="PLATFORM">PLATFORM</option>
-                  <option value="USER">USER</option>
-                </select>
-
-                <button onClick={() => setShowModelPopup(true)}
-                  className={`flex items-center gap-1.5 text-[10px] font-black rounded-full px-3 py-1.5 border transition-colors cursor-pointer ${
-                    selectedModelIds.length > 0 ? 'bg-cyan-400/10 border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/20' : 'bg-[#0f1f23] border-white/10 text-slate-500 hover:border-cyan-400/30'
-                  }`}>
-                  {selectedModelIds.length > 0 ? `${selectedModelIds.length} Model${selectedModelIds.length > 1 ? 's' : ''} ✓` : 'Pick Models'}
+                {/* Pick Models button */}
+                <button
+                  onClick={() => setShowModelPopup(true)}
+                  className={`flex items-center gap-2 text-[10px] font-black rounded-full px-4 py-2 border transition-all cursor-pointer ${
+                    selectedModelIds.length > 0
+                      ? 'bg-cyan-400/10 border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/20'
+                      : 'bg-[#0f1f23] border-white/10 text-slate-400 hover:border-cyan-400/30 hover:text-cyan-400'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+                  </svg>
+                  {selectedModelIds.length > 0
+                    ? `${selectedModelIds.length} Model${selectedModelIds.length > 1 ? 's' : ''} · ${modelPoolType} ✓`
+                    : 'Pick Models'}
                 </button>
 
-                {/* ── HBAR Reward with live pricing ── */}
-                <div className="relative">
-                  {/* Breakdown tooltip on hover */}
-                  {showTooltip && pricing && <PricingTooltip pricing={pricing} />}
-
-                  <div className={`flex items-center gap-1.5 bg-[#0f1f23] border rounded-full px-3 py-1 transition-colors ${
-                    pricing ? 'border-cyan-400/40' : 'border-cyan-400/20'
-                  }`}>
-                    {/* Spinner while fetching */}
-                    {loadingPrice && (
-                      <div className="w-3 h-3 border border-cyan-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                    )}
-
-                    {/* Range badge — hover shows tooltip */}
-                    {pricing && !loadingPrice && (
-                      <button
-                        onMouseEnter={() => setShowTooltip(true)}
-                        onMouseLeave={() => setShowTooltip(false)}
-                        className="flex items-center gap-1 cursor-help shrink-0"
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                        <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest whitespace-nowrap">
-                          {suggestedMin}–{suggestedMax}
-                        </span>
-                      </button>
-                    )}
-
-                    <input
-                      type="number"
-                      value={reward}
-                      onChange={(e) => handleRewardChange(e.target.value)}
-                      min={suggestedMin ?? 0}
-                      max={suggestedMax ?? undefined}
-                      step="0.01"
-                      placeholder={loadingPrice ? "..." : pricing ? String(suggestedMin) : "HBAR"}
-                      className="w-14 text-[10px] font-bold text-cyan-400 outline-none bg-transparent placeholder:text-slate-600"
-                    />
-                    <span className="text-[10px] font-black text-slate-500 uppercase">HBAR</span>
-                  </div>
-
-                  {/* Min / max hint */}
-                  {pricing && !loadingPrice && (
-                    <p className="absolute top-full mt-1 left-0 text-[8px] text-slate-600 whitespace-nowrap">
-                      min {suggestedMin} · max {suggestedMax} HBAR
-                    </p>
+                {/* HBAR Reward button — now opens popup */}
+                <button
+                  onClick={() => setShowHbarPopup(true)}
+                  className={`flex items-center gap-2 text-[10px] font-black rounded-full px-4 py-2 border transition-all cursor-pointer ${
+                    reward
+                      ? 'bg-cyan-400/10 border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/20'
+                      : 'bg-[#0f1f23] border-white/10 text-slate-400 hover:border-cyan-400/30 hover:text-cyan-400'
+                  }`}
+                >
+                  {loadingPrice ? (
+                    <div className="w-3 h-3 border border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   )}
-                </div>
+                  {reward ? `${reward} HBAR ✓` : 'Set Bounty'}
+                </button>
+
               </div>
 
               <div className="flex items-center gap-4">
