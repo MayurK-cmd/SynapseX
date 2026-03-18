@@ -4,6 +4,8 @@ import api from "../../api/axios";
 import { ethers } from "ethers";
 
 const ESCROW_CONTRACT_ADDRESS = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS;
+const HCS_TOPIC_ID = import.meta.env.VITE_HCS_TOPIC_ID; // e.g. "0.0.8275390"
+
 const ESCROW_ABI = [
   "function lockTask(bytes32 taskId) external payable",
 ];
@@ -81,7 +83,6 @@ function HbarRewardPopup({ pricing, loadingPrice, reward, onConfirm, onClose }) 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-
       <div
         className="relative w-full max-w-3xl rounded-t-3xl overflow-hidden flex flex-col"
         style={{
@@ -93,12 +94,9 @@ function HbarRewardPopup({ pricing, loadingPrice, reward, onConfirm, onClose }) 
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full bg-white/20" />
         </div>
-
-        {/* Header */}
         <div className="px-8 pt-3 pb-4 shrink-0">
           <div className="flex items-center justify-between">
             <div>
@@ -112,10 +110,7 @@ function HbarRewardPopup({ pricing, loadingPrice, reward, onConfirm, onClose }) 
             </button>
           </div>
         </div>
-
-        {/* Body */}
         <div className="flex-1 overflow-y-auto px-8 pb-4 flex flex-col gap-6">
-
           {loadingPrice ? (
             <div className="flex flex-col items-center justify-center flex-1 gap-3">
               <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
@@ -123,7 +118,6 @@ function HbarRewardPopup({ pricing, loadingPrice, reward, onConfirm, onClose }) 
             </div>
           ) : (
             <>
-              {/* Big number display */}
               <div className="flex flex-col items-center justify-center py-4 gap-1">
                 <div className="flex items-end gap-3">
                   <input
@@ -145,8 +139,6 @@ function HbarRewardPopup({ pricing, loadingPrice, reward, onConfirm, onClose }) 
                   </p>
                 )}
               </div>
-
-              {/* Slider */}
               {pricing && (
                 <div className="space-y-2">
                   <input
@@ -166,8 +158,6 @@ function HbarRewardPopup({ pricing, loadingPrice, reward, onConfirm, onClose }) 
                   </div>
                 </div>
               )}
-
-              {/* Preset pills */}
               {presets.length > 0 && (
                 <div className="flex gap-2">
                   {presets.map(p => (
@@ -186,8 +176,6 @@ function HbarRewardPopup({ pricing, loadingPrice, reward, onConfirm, onClose }) 
                   ))}
                 </div>
               )}
-
-              {/* Price breakdown */}
               {pricing && pricing.breakdown && (
                 <div
                   className="rounded-xl p-4 space-y-3"
@@ -214,8 +202,6 @@ function HbarRewardPopup({ pricing, loadingPrice, reward, onConfirm, onClose }) 
             </>
           )}
         </div>
-
-        {/* Footer CTA */}
         <div className="px-8 py-4 shrink-0 border-t border-white/5 flex gap-3">
           <button onClick={onClose} className="py-3 px-6 rounded-xl border border-white/10 text-xs font-black text-slate-400 hover:bg-white/5 uppercase tracking-widest transition-all cursor-pointer">
             Cancel
@@ -235,7 +221,7 @@ function HbarRewardPopup({ pricing, loadingPrice, reward, onConfirm, onClose }) 
   );
 }
 
-// ─── Combined Pool + Model Selection Popup (half-screen slide-up) ─────────────
+// ─── Combined Pool + Model Selection Popup ────────────────────────────────────
 function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
   const [models, setModels] = useState([]);
   const [selected, setSelected] = useState([]);
@@ -273,7 +259,6 @@ function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-
       <div
         className="relative w-full max-w-3xl rounded-t-3xl overflow-hidden flex flex-col"
         style={{
@@ -288,7 +273,6 @@ function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
         <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full bg-white/20" />
         </div>
-
         <div className="px-8 pt-3 pb-4 shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -301,7 +285,6 @@ function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
               </svg>
             </button>
           </div>
-
           <div className="flex gap-2">
             {['PLATFORM', 'USER'].map(pool => (
               <button
@@ -317,7 +300,6 @@ function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
               </button>
             ))}
           </div>
-
           <div className="flex items-center gap-3 mt-3">
             <div className="flex gap-1.5 flex-1">
               {[0, 1, 2].map(i => (
@@ -327,7 +309,6 @@ function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
             <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest shrink-0">{selected.length}/3 selected</span>
           </div>
         </div>
-
         <div className="flex-1 overflow-y-auto px-8 pb-4 space-y-2">
           {loading ? (
             <div className="flex justify-center py-10">
@@ -375,7 +356,6 @@ function ModelSelectionPopup({ poolType, onConfirm, onClose, token, API }) {
             );
           })}
         </div>
-
         <div className="px-8 py-4 shrink-0 border-t border-white/5 flex gap-3">
           <button onClick={onClose} className="py-3 px-6 rounded-xl border border-white/10 text-xs font-black text-slate-400 hover:bg-white/5 uppercase tracking-widest transition-all cursor-pointer">
             Cancel
@@ -417,7 +397,6 @@ export default function ChatLayout() {
   const pricingDebounce = useRef(null);
 
   const suggestedMin = pricing ? pricing.totalHBAR : null;
-  const suggestedMax = pricing ? parseFloat((pricing.totalHBAR * 10).toFixed(4)) : null;
 
   const fetchPricing = useCallback(async (modelIds) => {
     if (!modelIds || modelIds.length === 0) {
@@ -648,7 +627,7 @@ export default function ChatLayout() {
                   <svg className="w-3 h-3 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
                   </svg>
-                  HBAR Hedera Mainnet Network: Consensus Active
+                  Hedera Testnet · Consensus Active
                 </p>
               </div>
               {isPending && (
@@ -747,27 +726,85 @@ export default function ChatLayout() {
                   )}
                 </div>
 
+                {/* ── On-chain proof cards ───────────────────────────── */}
                 {selectedTask.escrow_tx_hash && (
-                  <div className="mt-4 mx-auto w-full max-w-md py-4">
+                  <div className="mt-4 w-full space-y-2">
+
+                    {/* Escrow lock proof — FIXED: uses escrow_tx_hash */}
                     <div className="rounded-xl p-4 flex items-center gap-4" style={{ background: 'rgba(15,31,35,0.7)', backdropFilter: 'blur(12px)', border: '1px solid rgba(0,208,255,0.3)' }}>
                       <div className="relative shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-cyan-400/20 flex items-center justify-center" style={{ border: '1px solid #00d0ff', boxShadow: '0 0 10px rgba(0,208,255,0.2)' }}>
-                          <svg className="w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <div className="w-10 h-10 rounded-full bg-cyan-400/20 flex items-center justify-center" style={{ border: '1px solid #00d0ff', boxShadow: '0 0 10px rgba(0,208,255,0.2)' }}>
+                          <svg className="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                           </svg>
                         </div>
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#000000] rounded-full flex items-center justify-center border border-cyan-400/40">
-                          <svg className="w-2.5 h-2.5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-slate-100 text-xs font-bold uppercase tracking-widest">Escrow Locked on Hedera</p>
+                        <p className="text-[10px] text-slate-500 font-mono truncate">
+                          {selectedTask.escrow_tx_hash.slice(0, 16)}...{selectedTask.escrow_tx_hash.slice(-10)}
+                        </p>
+                      </div>
+                      <a
+                        href={`https://hashscan.io/testnet/transaction/${selectedTask.escrow_tx_hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-cyan-400 text-[10px] hover:underline uppercase font-bold shrink-0"
+                      >
+                        View ↗
+                      </a>
+                    </div>
+
+                    {/* Payout proof — only shows when payment is done */}
+                    {selectedTask.payment_tx_hash && (
+                      <div className="rounded-xl p-4 flex items-center gap-4" style={{ background: 'rgba(10,30,15,0.7)', backdropFilter: 'blur(12px)', border: '1px solid rgba(34,197,94,0.3)' }}>
+                        <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center shrink-0" style={{ border: '1px solid rgba(34,197,94,0.6)' }}>
+                          <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
                           </svg>
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-green-400 text-xs font-bold uppercase tracking-widest">✓ Payout Sent on Hedera</p>
+                          <p className="text-[10px] text-slate-500 font-mono truncate">
+                            {selectedTask.payment_tx_hash.slice(0, 16)}...{selectedTask.payment_tx_hash.slice(-10)}
+                          </p>
+                        </div>
+                        <a
+                          href={`https://hashscan.io/testnet/transaction/${selectedTask.payment_tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-green-400 text-[10px] hover:underline uppercase font-bold shrink-0"
+                        >
+                          View ↗
+                        </a>
                       </div>
-                      <div>
-                        <p className="text-slate-100 text-xs font-bold uppercase tracking-widest">Hedera Proof Verified</p>
-                        <p className="text-[10px] text-slate-500 font-mono break-all">Hash: {selectedTask.escrow_tx_hash.slice(0, 12)}...{selectedTask.escrow_tx_hash.slice(-8)}</p>
-                        <a href={`https://hashscan.io/testnet/transaction/${selectedTask.payment_tx_hash}`} className="text-cyan-400 text-[10px] hover:underline uppercase font-bold mt-1 inline-block">View on Explorer</a>
+                    )}
+
+                    {/* HCS audit trail — shows after competition completes */}
+                    {selectedTask.status === "COMPLETED" && HCS_TOPIC_ID && (
+                      <div className="rounded-xl p-4 flex items-center gap-4" style={{ background: 'rgba(15,20,35,0.7)', backdropFilter: 'blur(12px)', border: '1px solid rgba(167,139,250,0.3)' }}>
+                        <div className="w-10 h-10 rounded-full bg-violet-400/20 flex items-center justify-center shrink-0" style={{ border: '1px solid rgba(167,139,250,0.5)' }}>
+                          <svg className="w-5 h-5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-violet-400 text-xs font-bold uppercase tracking-widest">HCS Audit Log — Immutable</p>
+                          <p className="text-[10px] text-slate-500 font-mono">
+                            Topic: {HCS_TOPIC_ID} · Competition result on-chain
+                          </p>
+                        </div>
+                        <a
+                          href={`https://hashscan.io/testnet/topic/${HCS_TOPIC_ID}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-violet-400 text-[10px] hover:underline uppercase font-bold shrink-0"
+                        >
+                          View ↗
+                        </a>
                       </div>
-                    </div>
+                    )}
+
                   </div>
                 )}
               </div>
@@ -834,7 +871,6 @@ export default function ChatLayout() {
             <div className="flex items-center justify-between px-2 flex-wrap gap-3">
               <div className="flex gap-2 flex-wrap items-center">
 
-                {/* Pick Models button */}
                 <button
                   onClick={() => setShowModelPopup(true)}
                   className={`flex items-center gap-2 text-[10px] font-black rounded-full px-4 py-2 border transition-all cursor-pointer ${
@@ -851,7 +887,6 @@ export default function ChatLayout() {
                     : 'Pick Models'}
                 </button>
 
-                {/* HBAR Reward button — now opens popup */}
                 <button
                   onClick={() => setShowHbarPopup(true)}
                   className={`flex items-center gap-2 text-[10px] font-black rounded-full px-4 py-2 border transition-all cursor-pointer ${
