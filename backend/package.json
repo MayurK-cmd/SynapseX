@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@hashgraph/proto": "^2.25.0",
-    "@hashgraph/sdk": "^2.80.0",
+    "@hashgraph/sdk": "^2.81.0",
     "@supabase/supabase-js": "^2.97.0",
     "axios": "^1.13.5",
     "cors": "^2.8.6",
