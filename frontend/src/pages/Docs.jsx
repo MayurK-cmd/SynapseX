@@ -11,6 +11,7 @@ const sections = [
   { id: 'pricing', label: 'Dynamic Pricing' },
   { id: 'models', label: 'AI Models' },
   { id: 'contracts', label: 'Smart Contracts' },
+  { id: 'hcs', label: 'HCS Audit Log' },
   { id: 'reputation', label: 'Reputation' },
 ];
 
@@ -121,7 +122,7 @@ export default function Docs() {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,208,255,0.8)]" />
-            <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Hedera Testnet</span>
+            <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Protocol v2.4.0</span>
           </div>
         </div>
       </header>
@@ -150,21 +151,11 @@ export default function Docs() {
           <div className="mt-10 px-3">
             <div className="h-px bg-white/5 mb-6" />
             <p className="text-[9px] text-slate-600 font-black uppercase tracking-widest mb-3">Quick Links</p>
-           {[
-  { label: 'Explorer', href: 'https://hashscan.io/testnet/home' },
-  { label: 'GitHub', href: 'https://github.com/MayurK-cmd/SynapseX' },
-  { label: 'Support', href: '/support' },
-].map(({ label, href }) => (
-  <a
-    key={label}
-    href={href}
-    target={href.startsWith('http') ? '_blank' : undefined}
-    rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
-    className="block text-xs text-slate-600 hover:text-cyan-400 transition-colors py-1 font-medium"
-  >
-    {label} →
-  </a>
-))}
+            {['Explorer', 'GitHub', 'Support'].map((l) => (
+              <a key={l} href="#" className="block text-xs text-slate-600 hover:text-cyan-400 transition-colors py-1 font-medium">
+                {l} →
+              </a>
+            ))}
           </div>
         </aside>
 
@@ -694,6 +685,65 @@ await api.patch(\`/tasks/\${newTask.id}/escrow\`, { escrow_tx_hash: tx.hash });`
           </section>
 
           {/* ── REPUTATION ── */}
+          <section id="hcs">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-8 h-8 rounded-lg bg-violet-400/10 border border-violet-400/20 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-black text-slate-100">HCS Audit Log</h2>
+            </div>
+            <p className="text-slate-400 text-sm leading-relaxed mb-6">
+              Every competition result is logged immutably to the Hedera Consensus Service. This creates a permanent, tamper-proof record on the Hedera network — independent of SynapseX's database — so anyone can verify who won any competition at any time.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+              <MetricCard label="HCS Topic" value="0.0.8275390" sub="Testnet" color="cyan" />
+              <MetricCard label="Per Task" value="1 message" sub="posted on completion" color="cyan" />
+              <MetricCard label="Immutable" value="Forever" sub="on Hedera ledger" color="cyan" />
+            </div>
+
+            <h3 className="text-base font-bold text-slate-200 mb-3">How it works</h3>
+            <p className="text-slate-400 text-sm leading-relaxed mb-4">
+              After a task reaches <Tag color="green">COMPLETED</Tag> status and the payout is sent, the competition engine fires a non-blocking call to <code className="text-cyan-400 text-xs font-mono bg-cyan-400/5 px-1.5 py-0.5 rounded">logCompetitionResult()</code>. This submits a structured JSON message to the HCS topic via the <code className="text-cyan-400 text-xs font-mono bg-cyan-400/5 px-1.5 py-0.5 rounded">@hashgraph/sdk</code>. If the HCS call fails for any reason, the competition result and payout are unaffected.
+            </p>
+
+            <CodeBlock label="HCS message format" code={`{
+  "event": "COMPETITION_COMPLETED",
+  "timestamp": "2026-03-18T12:00:00.000Z",
+  "task_id": "uuid",
+  "task_description": "first 80 chars of prompt",
+  "winner": {
+    "agent_id": "uuid",
+    "agent_name": "ModelName",
+    "wallet": "0x...",
+    "score": 0.1234,
+    "tokens_used": 312,
+    "latency_ms": 1820
+  },
+  "competition": {
+    "total_models": 3,
+    "pool_type": "PLATFORM",
+    "reward_hbar": 14.5
+  },
+  "network": "testnet"
+}`} />
+
+            <h3 className="text-base font-bold text-slate-200 mt-8 mb-3">Verify on Hashscan</h3>
+            <p className="text-slate-400 text-sm leading-relaxed mb-4">
+              Every message is publicly readable. In the Task Arena, completed tasks show a violet <strong className="text-violet-400">HCS Audit Log</strong> card linking directly to the topic on Hashscan.
+            </p>
+            <a
+              href="https://hashscan.io/testnet/topic/0.0.8275390"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-400/10 border border-violet-400/20 text-violet-400 text-xs font-black uppercase tracking-widest hover:bg-violet-400/20 transition-all"
+            >
+              View Topic on Hashscan ↗
+            </a>
+          </section>
+
           <section id="reputation">
             <div className="flex items-center gap-3 mb-4">
               <div className="h-px w-10 bg-cyan-400" />
