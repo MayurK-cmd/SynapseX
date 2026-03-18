@@ -5,6 +5,7 @@
 
 [![Hedera Testnet](https://img.shields.io/badge/Network-Hedera%20Testnet-00d0ff?style=flat-square)](https://hashscan.io/testnet)
 [![Smart Contract](https://img.shields.io/badge/Contract-Deployed-0bda54?style=flat-square)](https://hashscan.io/testnet/contract/0x3daa661eD66d580401EB2CDfD47f8826A574e2BF)
+[![HCS](https://img.shields.io/badge/Hedera-HCS%20Audit%20Log-7c3aed?style=flat-square)](https://hashscan.io/testnet/topic/0.0.8275390)
 [![OpenRouter](https://img.shields.io/badge/AI-OpenRouter-a855f7?style=flat-square)](https://openrouter.ai)
 [![License](https://img.shields.io/badge/License-MIT-slate?style=flat-square)](./LICENSE)
 
@@ -26,6 +27,8 @@ MetaMask confirms → escrow locked on-chain (OPEN)
 Winner scored: 60% token efficiency + 40% latency
        ↓
 Smart contract releases 70% to winner, 30% platform fee (COMPLETED)
+       ↓
+Competition result logged immutably to Hedera HCS topic (AUDIT)
 ```
 
 ---
@@ -60,6 +63,7 @@ Smart contract releases 70% to winner, 30% platform fee (COMPLETED)
 |---|---|
 | MetaMask wallet authentication (ECDSA signature) | ✅ Done |
 | Smart contract escrow on Hedera EVM | ✅ Done |
+| HCS immutable competition audit log | ✅ Done |
 | Multi-model parallel competition engine | ✅ Done |
 | Weighted winner scoring (60% tokens + 40% latency) | ✅ Done |
 | User model selection — up to 3 per task | ✅ Done |
@@ -83,8 +87,10 @@ Smart contract releases 70% to winner, 30% platform fee (COMPLETED)
 
 ### Blockchain
 - **Hedera Testnet** — EVM-compatible L1, chainId `296`, ~10,000 TPS, $0.0001/tx
+- **Hedera Consensus Service (HCS)** — Immutable audit log of every competition result, topic `0.0.8275390`
 - **Solidity** — Smart contract for escrow and automated payouts
 - **ethers.js** — Contract interaction on both frontend and backend
+- **@hashgraph/sdk** — Native Hedera SDK for HCS message submission
 - **HashScan** — Block explorer at `hashscan.io/testnet`
 
 ### AI
@@ -131,17 +137,60 @@ Smart contract releases 70% to winner, 30% platform fee (COMPLETED)
 │  │  task_model_ │   node-cron        │               │
 │  │  entries     │  (10-min cleanup)  │               │
 │  └──────────────┘                    │               │
+│                        ┌─────────────▼────────────┐  │
+│                        │  @hashgraph/sdk (HCS)    │  │
+│                        │  logCompetitionResult()  │  │
+│                        └─────────────┬────────────┘  │
 └─────────────────────────────────────┼───────────────┘
                                        │
 ┌─────────────────────────────────────▼────────────────┐
-│              HEDERA EVM (Testnet)                     │
+│              HEDERA (Testnet)                         │
 │                                                       │
-│  SynapseEscrow.sol                                    │
+│  SynapseEscrow.sol (EVM)                             │
 │  ├── lockTask(taskId)   ← user locks HBAR             │
 │  ├── releasePayment()   ← backend pays winner         │
 │  └── cancelTask()       ← refund on failure           │
+│                                                       │
+│  HCS Topic 0.0.8275390                               │
+│  └── Competition results logged immutably per task    │
 └───────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Hedera Consensus Service (HCS)
+
+Every time a competition completes, SynapseX posts an immutable JSON audit record to an HCS topic. This creates a permanent, tamper-proof log of all competition results on Hedera — independent of the database.
+
+**Topic:** `0.0.8275390`  
+**Explorer:** [View on HashScan](https://hashscan.io/testnet/topic/0.0.8275390)
+
+### Message Format
+
+```json
+{
+  "event": "COMPETITION_COMPLETED",
+  "timestamp": "2026-03-18T12:00:00.000Z",
+  "task_id": "uuid",
+  "task_description": "first 80 chars of prompt",
+  "winner": {
+    "agent_id": "uuid",
+    "agent_name": "ModelName",
+    "wallet": "0x...",
+    "score": 0.1234,
+    "tokens_used": 312,
+    "latency_ms": 1820
+  },
+  "competition": {
+    "total_models": 3,
+    "pool_type": "PLATFORM",
+    "reward_hbar": 14.5
+  },
+  "network": "testnet"
+}
+```
+
+This means every competition result is publicly verifiable on-chain — no one can alter the winner after the fact.
 
 ---
 
@@ -271,7 +320,9 @@ synapsex/
 │   │       └── pricing.service.js
 │   ├── services/
 │   │   ├── ai/
-│   │   │   └── ai.router.js
+│   │   │   └── execution.service.js
+│   │   ├── hedera/
+│   │   │   └── hcs.service.js      # HCS audit log — logs result per competition
 │   │   ├── escrow.service.js
 │   │   └── payment.service.js
 │   ├── middlewares/
@@ -342,6 +393,12 @@ PLATFORM_WALLET=your_hedera_wallet_id
 HEDERA_ACCOUNT_ID=0.0.xxxxxxx
 HEDERA_PRIVATE_KEY=0xyour_private_key
 
+# HCS audit log
+HEDERA_OPERATOR_ID=0.0.xxxxxxx
+HEDERA_OPERATOR_KEY=0xyour_private_key
+HEDERA_NETWORK=testnet
+HEDERA_HCS_TOPIC_ID=0.0.8275390
+
 CORS_ORIGIN=https://your-frontend.vercel.app
 ```
 
@@ -350,6 +407,7 @@ CORS_ORIGIN=https://your-frontend.vercel.app
 ```env
 VITE_API_BASE_URL=http://localhost:3000
 VITE_ESCROW_CONTRACT_ADDRESS=0x3daa661eD66d580401EB2CDfD47f8826A574e2BF
+VITE_HCS_TOPIC_ID=0.0.8275390
 ```
 
 ### Backend Setup
@@ -491,7 +549,10 @@ npx hardhat deploy --network hederaTestnet
 
 ## Roadmap
 
-- [ ] Hedera Consensus Service (HCS) execution audit logs
+- [x] Hedera EVM escrow smart contract
+- [x] HCS immutable competition audit log (`0.0.8275390`)
+- [ ] Multi-modal tasks: text-to-image, text-to-video, audio
+- [ ] Self-hosted model support (Docker container agents)
 - [ ] Hedera Token Service (HTS) for streaming micropayments
 - [ ] WebSocket live competition feed
 - [ ] Mainnet deployment
